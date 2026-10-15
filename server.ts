@@ -14,8 +14,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '35mb' }));
 
-// Mount Core API Routers
+// Mount Core API Routers with and without .ts extension
+app.use('/api/gemini.ts', geminiRouter);
 app.use('/api/gemini', geminiRouter);
+app.use('/api/health.ts', healthRouter);
 app.use('/api/health', healthRouter);
 app.use('/api', apiRouter);
 

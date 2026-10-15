@@ -127,11 +127,20 @@ export default function App() {
 
     setIsSearchingRecipes(true);
     try {
-      const response = await fetch('/api/gemini/find-recipes', {
+      const payload = { action: 'find-recipes', ingredients: activeIngredients };
+      let response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ingredients: activeIngredients }),
-      });
+        body: JSON.stringify(payload),
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!response.ok) {
         throw new Error('Failed to generate recipes with Gemini AI');
@@ -158,15 +167,26 @@ export default function App() {
 
     setIsLoadingCustomRecipe(true);
     try {
-      const response = await fetch('/api/gemini/generate-recipe', {
+      const payload = {
+        action: 'generate-recipe',
+        ingredients: activeIngredients,
+        mealType: 'Dinner',
+        dietaryPreference: 'None',
+      };
+
+      let response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ingredients: activeIngredients,
-          mealType: 'Dinner',
-          dietaryPreference: 'None',
-        }),
-      });
+        body: JSON.stringify(payload),
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!response.ok) {
         throw new Error('Failed to generate custom recipe');
@@ -226,6 +246,7 @@ export default function App() {
             setIsAnalyzing={setIsAnalyzing}
             onViewPantry={() => setCurrentTab('pantry')}
             pantryCount={ingredients.length}
+            autoStart={true}
           />
         )}
 

@@ -26,6 +26,7 @@ interface CameraScannerProps {
   setIsAnalyzing: (analyzing: boolean) => void;
   onViewPantry: () => void;
   pantryCount: number;
+  autoStart?: boolean;
 }
 
 interface CameraDeviceInfo {
@@ -40,6 +41,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   setIsAnalyzing,
   onViewPantry,
   pantryCount,
+  autoStart = true,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +108,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   useEffect(() => {
     checkKeyStatus();
   }, []);
+
+  // Auto-open main camera when camera tab is active
+  useEffect(() => {
+    if (autoStart && !cameraActive && !previewImage && !cameraError) {
+      startCamera('environment');
+    }
+  }, [autoStart]);
 
   // Helper to discover and prioritize the primary Main Wide Camera
   const discoverCameras = async (): Promise<CameraDeviceInfo[]> => {
@@ -418,15 +427,25 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
 
     try {
-      const response = await fetch('/api/gemini', {
+      const payload = {
+        action: 'identify',
+        imageBase64: base64Image,
+        mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+      };
+
+      let response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'identify',
-          imageBase64: base64Image,
-          mimeType: 'image/jpeg',
-        }),
-      });
+        body: JSON.stringify(payload),
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -693,14 +712,27 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               )}
             </div>
           ) : (
-            /* Idle Placeholder */
-            <div className="p-6 text-center text-stone-400 flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-stone-800/80 flex items-center justify-center text-amber-400 mb-3 shadow-inner">
-                <Camera className="w-8 h-8" />
+            /* Idle Placeholder - Tapping the icon at the middle auto-opens the camera */
+            <div
+              onClick={() => startCamera('environment')}
+              className="p-8 text-center text-stone-400 flex flex-col items-center cursor-pointer group select-none"
+            >
+              <div className="relative mb-3">
+                <div className="absolute -inset-2 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-full blur-md opacity-50 group-hover:opacity-80 transition duration-300 animate-pulse" />
+                <button
+                  type="button"
+                  onClick={() => startCamera('environment')}
+                  className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-2xl group-hover:scale-110 active:scale-95 transition-all"
+                  title="Click to open camera"
+                >
+                  <Camera className="w-10 h-10 stroke-[2.2]" />
+                </button>
               </div>
-              <h3 className="text-white font-bold text-base">Main Camera Ready</h3>
+              <h3 className="text-white font-extrabold text-base group-hover:text-amber-400 transition-colors">
+                Tap Icon to Open Camera
+              </h3>
               <p className="text-stone-400 text-xs mt-1 max-w-xs">
-                Tap "Open Camera" to use wide 1x main lens with pinch-to-zoom, or upload a photo.
+                Tap the icon in the middle to start main camera with pinch zoom
               </p>
             </div>
           )}

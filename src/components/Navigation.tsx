@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, UtensilsCrossed, Heart, Sparkles, ChefHat, Layers } from 'lucide-react';
+import { Camera, UtensilsCrossed, Heart, ChefHat, Layers } from 'lucide-react';
 import { AppTab } from '../types';
 
 interface NavigationProps {
@@ -63,23 +63,9 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
   if (currentTab === 'cooking') return null;
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-stone-200 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-xl">
-      <div className="max-w-lg mx-auto flex items-center justify-around">
-        {/* Scan */}
-        <button
-          onClick={() => onTabChange('scanner')}
-          type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
-            currentTab === 'scanner'
-              ? 'text-amber-600 font-bold scale-105'
-              : 'text-stone-500 hover:text-stone-800 font-medium'
-          }`}
-        >
-          <Camera className="w-5 h-5 mb-0.5" />
-          <span className="text-[11px]">Scan</span>
-        </button>
-
-        {/* Pantry */}
+    <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-stone-200 px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl">
+      <div className="max-w-lg mx-auto flex items-center justify-around relative">
+        {/* 1. Pantry */}
         <button
           onClick={() => onTabChange('pantry')}
           type="button"
@@ -92,15 +78,15 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
           <div className="relative">
             <Layers className="w-5 h-5 mb-0.5" />
             {pantryCount > 0 && (
-              <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-extrabold flex items-center justify-center">
+              <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-extrabold flex items-center justify-center">
                 {pantryCount}
               </span>
             )}
           </div>
-          <span className="text-[11px]">Pantry</span>
+          <span className="text-[10px]">Pantry</span>
         </button>
 
-        {/* Recipes */}
+        {/* 2. Recipes */}
         <button
           onClick={() => onTabChange('recipes')}
           type="button"
@@ -118,10 +104,26 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[11px]">Recipes</span>
+          <span className="text-[10px]">Recipes</span>
         </button>
 
-        {/* Favorites */}
+        {/* 3. HERO CENTER CAMERA BUTTON: Auto-opens camera */}
+        <div className="relative -top-3">
+          <button
+            onClick={() => onTabChange('scanner')}
+            type="button"
+            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl shadow-amber-500/30 transition-all active:scale-95 border-2 border-white ${
+              currentTab === 'scanner'
+                ? 'bg-gradient-to-tr from-amber-500 to-orange-500 ring-4 ring-amber-400/30 scale-105'
+                : 'bg-gradient-to-tr from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
+            }`}
+            title="Open Camera"
+          >
+            <Camera className="w-6 h-6 stroke-[2.2]" />
+          </button>
+        </div>
+
+        {/* 4. Favorites */}
         <button
           onClick={() => onTabChange('favorites')}
           type="button"
@@ -132,17 +134,21 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
           }`}
         >
           <div className="relative">
-            <Heart className={`w-5 h-5 mb-0.5 ${favoritesCount > 0 && currentTab === 'favorites' ? 'fill-current' : ''}`} />
+            <Heart
+              className={`w-5 h-5 mb-0.5 ${
+                favoritesCount > 0 && currentTab === 'favorites' ? 'fill-current' : ''
+              }`}
+            />
             {favoritesCount > 0 && (
               <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center">
                 {favoritesCount}
               </span>
             )}
           </div>
-          <span className="text-[11px]">Favorites</span>
+          <span className="text-[10px]">Favorites</span>
         </button>
 
-        {/* Active Cook Floating Tab if in progress */}
+        {/* 5. Active Cooking Session */}
         {hasActiveCookingSession && (
           <button
             onClick={onResumeCooking}
@@ -150,7 +156,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
             className="flex flex-col items-center py-1 px-3 rounded-2xl text-amber-600 font-extrabold animate-pulse"
           >
             <ChefHat className="w-5 h-5 mb-0.5 text-amber-600" />
-            <span className="text-[11px]">Cooking</span>
+            <span className="text-[10px]">Cooking</span>
           </button>
         )}
       </div>
