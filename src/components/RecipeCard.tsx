@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, Clock, ChefHat, Play, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Heart, Clock, ChefHat, Play, CheckCircle2, AlertCircle, Sparkles, Users } from 'lucide-react';
 import { Recipe } from '../types';
 
 interface RecipeCardProps {
@@ -113,6 +113,11 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
             <span className="flex items-center gap-1 text-stone-500">
               <Clock className="w-3 h-3" />
               {recipe.estimatedTimeMinutes}m
+            </span>
+            <span className="text-stone-300">•</span>
+            <span className="flex items-center gap-1 text-stone-500" title="Servings">
+              <Users className="w-3 h-3 text-stone-400" />
+              {recipe.servings || 2}p
             </span>
           </div>
 

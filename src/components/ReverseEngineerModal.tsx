@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Sparkles,
@@ -15,9 +15,14 @@ import {
   Lightbulb,
   CookingPot,
   Utensils,
+  Minus,
+  Plus,
+  Users,
 } from 'lucide-react';
 import { Recipe } from '../types';
 import { SupportedLanguage, t } from '../utils/i18n';
+import { StepCartoonIllustration } from './StepCartoonIllustration';
+import { scaleMeasure } from '../utils/measureScaler';
 
 interface ReverseEngineerModalProps {
   recipe: Recipe | null;
@@ -42,6 +47,15 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
   onAdjustPhoto,
   currentLanguage = 'en',
 }) => {
+  const baseServings = Math.max(1, recipe?.servings || 2);
+  const [servings, setServings] = useState<number>(baseServings);
+
+  useEffect(() => {
+    if (recipe) {
+      setServings(Math.max(1, recipe.servings || 2));
+    }
+  }, [recipe?.id, recipe?.servings]);
+
   if (!isOpen || !recipe) return null;
 
   const missingIngredients = recipe.ingredients.filter((i) => !i.hasIngredient);
@@ -129,7 +143,7 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
             )}
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-3 gap-2 mt-3.5">
+            <div className="grid grid-cols-4 gap-2 mt-3.5">
               <div className="p-2.5 rounded-2xl bg-stone-800/80 border border-stone-700/60 flex flex-col items-center text-center">
                 <Clock className="w-4 h-4 text-amber-400 mb-1" />
                 <span className="text-[10px] text-stone-400 uppercase font-semibold">Time</span>
@@ -143,8 +157,33 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
                 <span className="text-xs font-bold text-stone-200">{recipe.difficulty}</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-stone-800/80 border border-stone-700/60 flex flex-col items-center text-center">
+                <Users className="w-4 h-4 text-amber-400 mb-1" />
+                <span className="text-[10px] text-stone-400 uppercase font-semibold">Servings</span>
+                <div className="inline-flex items-center gap-1 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setServings((prev) => Math.max(1, prev - 1))}
+                    className="w-4 h-4 rounded bg-stone-700 hover:bg-stone-600 text-white flex items-center justify-center text-[10px] cursor-pointer"
+                    title="Decrease servings"
+                  >
+                    <Minus className="w-2.5 h-2.5" />
+                  </button>
+                  <span className="text-xs font-bold text-amber-300 min-w-5 text-center">
+                    {servings}p
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setServings((prev) => Math.min(12, prev + 1))}
+                    className="w-4 h-4 rounded bg-stone-700 hover:bg-stone-600 text-white flex items-center justify-center text-[10px] cursor-pointer"
+                    title="Increase servings"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-2xl bg-stone-800/80 border border-stone-700/60 flex flex-col items-center text-center">
                 <ChefHat className="w-4 h-4 text-amber-400 mb-1" />
-                <span className="text-[10px] text-stone-400 uppercase font-semibold">Pantry Match</span>
+                <span className="text-[10px] text-stone-400 uppercase font-semibold">Match</span>
                 <span className="text-xs font-bold text-emerald-400">
                   {recipe.matchPercentage}%
                 </span>
@@ -238,9 +277,16 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
           {/* Recreated Ingredients */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
-              <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider">
-                Recreated Recipe Ingredients ({recipe.ingredients.length})
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider">
+                  Recreated Recipe Ingredients ({recipe.ingredients.length})
+                </h3>
+                {servings !== baseServings && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                    Scaled to {servings}p
+                  </span>
+                )}
+              </div>
               {missingIngredients.length > 0 && onAddMissingToPantry && (
                 <button
                   type="button"
@@ -254,59 +300,80 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              {recipe.ingredients.map((ing, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-stone-800/60 border border-stone-800 text-xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {ing.hasIngredient ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                    )}
-                    <span className="font-semibold text-stone-200">{ing.name}</span>
+              {recipe.ingredients.map((ing, idx) => {
+                const scaledAmount = scaleMeasure(ing.measure, baseServings, servings);
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-stone-800/60 border border-stone-800 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {ing.hasIngredient ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                      )}
+                      <span className="font-semibold text-stone-200">{ing.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={servings !== baseServings ? 'text-amber-300 font-bold' : 'text-stone-400'}>
+                        {scaledAmount}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          ing.hasIngredient
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                            : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                        }`}
+                      >
+                        {ing.hasIngredient ? 'In Pantry' : 'Needed'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-stone-400">{ing.measure}</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        ing.hasIngredient
-                          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                          : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
-                      }`}
-                    >
-                      {ing.hasIngredient ? 'In Pantry' : 'Needed'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Step-by-Step Culinary Instructions */}
+          {/* Step-by-Step Culinary Instructions with Cartoonized Illustrations */}
           <div>
-            <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider mb-2.5">
-              Master Chef Preparation Steps
-            </h3>
-            <div className="space-y-3">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                Master Chef Preparation Steps ({recipe.steps.length})
+              </h3>
+              <span className="text-[10px] text-stone-500 font-medium">
+                Illustrated Actions
+              </span>
+            </div>
+            <div className="space-y-2.5">
               {recipe.steps.map((step) => (
                 <div
                   key={step.stepNumber}
-                  className="p-3.5 rounded-2xl bg-stone-800/50 border border-stone-700/60 flex items-start gap-3"
+                  className="p-3.5 rounded-2xl bg-stone-800/50 border border-stone-700/60 flex items-center gap-3.5 hover:border-amber-500/40 transition-colors"
                 >
-                  <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30">
-                    {step.stepNumber}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-stone-200 leading-relaxed">
+                  <StepCartoonIllustration
+                    instruction={step.instruction}
+                    actionType={step.actionType}
+                    stepNumber={step.stepNumber}
+                    size="md"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-stone-200 leading-relaxed font-medium">
                       {step.instruction}
                     </p>
-                    {step.tip && (
-                      <p className="text-[11px] text-amber-300/90 mt-1 italic">
-                        Chef Tip: {step.tip}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {step.estimatedMinutes && (
+                        <span className="text-[10px] text-amber-400 font-semibold bg-amber-950/60 border border-amber-800/50 px-2 py-0.5 rounded-md">
+                          ⏱ ~{step.estimatedMinutes} min
+                        </span>
+                      )}
+                      {step.tip && (
+                        <p className="text-[11px] text-amber-300/90 italic">
+                          Chef Tip: {step.tip}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -317,12 +384,28 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
         {/* Modal Action Footer */}
         <div className="p-4 bg-stone-950/90 border-t border-stone-800 flex items-center gap-3">
           <button
-            onClick={() => onStartCooking(recipe)}
+            onClick={() => {
+              onClose();
+              const scaledRecipe: Recipe = {
+                ...recipe,
+                servings,
+                ingredients: recipe.ingredients.map((ing) => ({
+                  ...ing,
+                  measure: scaleMeasure(ing.measure, baseServings, servings),
+                })),
+              };
+              onStartCooking(scaledRecipe);
+            }}
             type="button"
             className="flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all cursor-pointer"
           >
             <Play className="w-4 h-4 fill-current" />
             <span>Start Voice Cooking Assistant</span>
+            {servings !== baseServings && (
+              <span className="text-xs bg-stone-900/40 px-2 py-0.5 rounded-lg">
+                ({servings} servings)
+              </span>
+            )}
           </button>
         </div>
       </div>

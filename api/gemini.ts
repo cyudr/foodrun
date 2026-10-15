@@ -683,7 +683,7 @@ Instructions:
    - "isStaple": true if it's a basic kitchen staple (salt, oil, pepper, water, flour).
 3. Compute an honest matchPercentage (0 to 100) based on how much of the dish can be made with user's items.
 4. Break each recipe into clear, numbered cooking steps in ${langConfig.name}. Each step should be concise and spoken-friendly for a voice cooking assistant.
-5. Provide realistic prep and cook times in minutes, difficulty ("Easy", "Medium", "Hard" translated if appropriate), and servings.
+5. Provide realistic prep and cook times in minutes, difficulty ("Easy", "Medium", "Hard" translated if appropriate), and accurate integer servings (must be an integer between 1 and 8, typically 2 or 4, exactly scaled to match the ingredient quantities provided).
 6. Provide an accurate dishVisualType for each dish matching its appearance from: "salmon", "shrimp", "seafood", "fish", "chicken-roast", "chicken-crispy", "chicken-curry", "chicken", "steak", "beef-stir-fry", "beef-stew", "beef", "pork", "pasta-creamy", "pasta-tomato", "pasta-pesto", "pasta", "ramen", "noodles", "fried-rice", "biryani", "rice", "tofu", "stir-fry", "salad-caesar", "salad", "soup-tomato", "soup-miso", "soup", "curry", "eggs-shakshuka", "eggs", "pancakes", "toast-avocado", "toast", "pizza-margherita", "pizza", "tacos", "burger", "sandwich", "dumplings", "sushi", "bbq-ribs", or "dessert".
 7. Provide englishDishName: A concise 2-4 word standard English name for the dish (e.g. "Garlic Butter Shrimp Pasta", "Kimchi Fried Rice", "Miso Ramen", "Chicken Tikka Masala", "Avocado Toast", "Beef Bulgogi") to guarantee 100% accurate culinary photography matching regardless of the display language.
 8. Provide cookingWares: An array of 3-6 essential kitchen cooking wares, pans, pots, knives, and utensils required to prepare this recipe, written in ${langConfig.name} (e.g. Non-stick skillet, Chef knife, Cutting board, Large pot, Wooden spatula, Mixing bowl, Whisk, Tongs, Baking sheet).
@@ -800,7 +800,7 @@ Return pure JSON matching the schema.`;
         platingStyle: recipe.platingStyle || 'Modern Plate',
         difficulty: recipe.difficulty || 'Easy',
         estimatedTimeMinutes: (recipe.prepTimeMinutes || 10) + (recipe.cookTimeMinutes || 15),
-        servings: recipe.servings || 2,
+        servings: Math.max(1, Math.round(Number(recipe.servings) || 2)),
         cookingWares: Array.isArray(recipe.cookingWares) && recipe.cookingWares.length > 0
           ? recipe.cookingWares
           : ['Non-stick skillet', 'Chef knife', 'Cutting board'],
@@ -857,7 +857,7 @@ CRITICAL: All recipe content (title, description, category, area, difficulty, di
 Requirements:
 1. Create a clear recipe name in ${langConfig.name} that sounds appetizing.
 2. Utilize as many of the user's available ingredients as possible.
-3. Provide realistic prep time, cook time, difficulty, and servings.
+3. Provide realistic prep time, cook time, difficulty, and accurate integer servings (must be an integer, typically 2 or 4, matching the ingredient quantities).
 4. Break down the cooking process into concise, well-sequenced, spoken-friendly cooking steps in ${langConfig.name}.
 5. Add timer recommendation for steps requiring cooking/simmering/baking.
 6. Provide dishVisualType: ("salmon", "shrimp", "seafood", "fish", "chicken-roast", "chicken-crispy", "chicken-curry", "chicken", "steak", "beef-stir-fry", "beef-stew", "beef", "pork", "pasta-creamy", "pasta-tomato", "pasta-pesto", "pasta", "ramen", "noodles", "fried-rice", "biryani", "rice", "tofu", "stir-fry", "salad-caesar", "salad", "soup-tomato", "soup-miso", "soup", "curry", "eggs-shakshuka", "eggs", "pancakes", "toast-avocado", "toast", "pizza-margherita", "pizza", "tacos", "burger", "sandwich", "dumplings", "sushi", "bbq-ribs", or "dessert").
@@ -960,7 +960,7 @@ Return purely JSON matching the schema.`;
       platingStyle: parsed.platingStyle || 'Modern Plate',
       difficulty: parsed.difficulty || 'Easy',
       estimatedTimeMinutes: (parsed.prepTimeMinutes || 10) + (parsed.cookTimeMinutes || 20),
-      servings: parsed.servings || 2,
+      servings: Math.max(1, Math.round(Number(parsed.servings) || 2)),
       cookingWares: Array.isArray(parsed.cookingWares) && parsed.cookingWares.length > 0
         ? parsed.cookingWares
         : ['Non-stick skillet', 'Chef knife', 'Cutting board'],
@@ -1033,7 +1033,7 @@ Carefully examine this photograph of a finished food dish:
 3. Evaluate the flavor balance on 0-100: savory, umami, acidity, sweetness, richness/fat.
 4. Formulate the definitive, step-by-step master recipe in ${langConfig.name} so the user can recreate this restaurant-quality dish at home:
    - Clear title and enticing description in ${langConfig.name}.
-   - Prep time, cook time, difficulty ('Easy', 'Medium', 'Hard'), servings.
+   - Prep time, cook time, difficulty ('Easy', 'Medium', 'Hard'), and accurate integer servings (must be an integer, typically 2 or 4, matching the ingredient portions).
    - Comprehensive ingredients list with precise culinary measurements in ${langConfig.name}.
    - Cross-reference with the user's pantry (${userPantryContext}):
      * Set hasIngredient = true if user already has it in their pantry.
@@ -1176,7 +1176,7 @@ Return purely JSON adhering strictly to the schema.`;
       platingStyle: parsed.platingStyle || 'Fine Dining',
       difficulty: parsed.difficulty || 'Medium',
       estimatedTimeMinutes: (parsed.prepTimeMinutes || 15) + (parsed.cookTimeMinutes || 25),
-      servings: parsed.servings || 2,
+      servings: Math.max(1, Math.round(Number(parsed.servings) || 2)),
       cookingWares: Array.isArray(parsed.cookingWares) && parsed.cookingWares.length > 0
         ? parsed.cookingWares
         : ['Chef skillet', 'Santoku knife', 'Prep bowls'],

@@ -35,6 +35,8 @@ interface CameraScannerProps {
   onOpenProModal?: (feature?: string) => void;
   onReverseEngineerCompleted?: (recipe: any) => void;
   currentLanguage?: SupportedLanguage;
+  onConsumeUsage?: () => boolean;
+  onOpenUsageModal?: () => void;
 }
 
 interface CameraDeviceInfo {
@@ -54,6 +56,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   onOpenProModal,
   onReverseEngineerCompleted,
   currentLanguage = 'en',
+  onConsumeUsage,
+  onOpenUsageModal,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -380,6 +384,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const capturePhoto = () => {
     if (!videoRef.current) return;
 
+    if (onConsumeUsage && !onConsumeUsage()) {
+      return;
+    }
+
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
     const width = video.videoWidth || 720;
@@ -430,6 +438,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (onConsumeUsage && !onConsumeUsage()) {
+      e.target.value = '';
+      return;
+    }
 
     setIsAnalyzing(true);
     setStatusMessage(

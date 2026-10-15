@@ -9,6 +9,7 @@ import {
   Globe,
   Check,
   ChevronDown,
+  Zap,
 } from 'lucide-react';
 import { AppTab } from '../types';
 import {
@@ -17,6 +18,7 @@ import {
   getLanguageMeta,
   t,
 } from '../utils/i18n';
+import { UsageState, formatMinutes, getRemainingRefreshMinutes } from '../utils/usageCookies';
 
 interface NavigationProps {
   currentTab: AppTab;
@@ -37,6 +39,8 @@ export const TopBar: React.FC<{
   onOpenProModal?: () => void;
   currentLanguage: SupportedLanguage;
   onLanguageChange: (lang: SupportedLanguage) => void;
+  usageState?: UsageState;
+  onOpenUsageModal?: () => void;
 }> = ({
   currentTab,
   pantryCount,
@@ -45,6 +49,8 @@ export const TopBar: React.FC<{
   onOpenProModal,
   currentLanguage,
   onLanguageChange,
+  usageState,
+  onOpenUsageModal,
 }) => {
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
@@ -146,6 +152,52 @@ export const TopBar: React.FC<{
               </div>
             )}
           </div>
+
+          {/* App Usage Counter Badge (3/3, 2-hr refresh countdown on minute) */}
+          {usageState && onOpenUsageModal && (
+            <button
+              onClick={onOpenUsageModal}
+              type="button"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
+                isPro
+                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                  : usageState.count === 0
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+              }`}
+              title={
+                isPro
+                  ? 'Chef Pro: Unlimited Free Cooking Generations'
+                  : usageState.count === 0
+                  ? `Usage limit reached (0/3). 1 credit refreshes in ${formatMinutes(getRemainingRefreshMinutes(usageState))}`
+                  : `Free Cooking Credits: ${usageState.count}/${usageState.maxCount}. Tap to view status or watch ads.`
+              }
+            >
+              <Zap
+                className={`w-3.5 h-3.5 ${
+                  isPro
+                    ? 'text-amber-600 fill-amber-600'
+                    : usageState.count === 0
+                    ? 'text-rose-500 fill-rose-500'
+                    : 'text-amber-500 fill-amber-500'
+                }`}
+              />
+              <span className="text-[11px] font-black font-mono tracking-tight">
+                {isPro ? (
+                  'VIP'
+                ) : usageState.count === 0 ? (
+                  <span>
+                    0/3{' '}
+                    <span className="text-[10px] text-rose-600 font-bold">
+                      ({formatMinutes(getRemainingRefreshMinutes(usageState))})
+                    </span>
+                  </span>
+                ) : (
+                  `${usageState.count}/${usageState.maxCount}`
+                )}
+              </span>
+            </button>
+          )}
 
           {/* Chef Pro / Premium Badge or Button */}
           {onOpenProModal && (

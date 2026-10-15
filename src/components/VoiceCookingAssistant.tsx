@@ -24,6 +24,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Recipe, RecipeStep, ActiveTimer } from '../types';
 import { speechController } from '../utils/speech';
+import { StepCartoonIllustration } from './StepCartoonIllustration';
 import {
   SupportedLanguage,
   SUPPORTED_LANGUAGES,
@@ -403,6 +404,17 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" />
               <span>{prompts.stepPrefix(currentStep.stepNumber)}</span>
+            </div>
+
+            {/* Cartoonized Step Action Illustration */}
+            <div className="flex justify-center my-1">
+              <StepCartoonIllustration
+                instruction={currentStep.instruction}
+                actionType={currentStep.actionType}
+                stepNumber={currentStep.stepNumber}
+                size="xl"
+                className="shadow-xl shadow-amber-500/10"
+              />
             </div>
 
             {/* Cooking Wares Preview on Step 1 */}

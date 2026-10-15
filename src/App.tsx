@@ -14,9 +14,17 @@ import { TopBar, BottomTabBar } from './components/Navigation';
 import { ChefProModal } from './components/ChefProModal';
 import { ReverseEngineerModal } from './components/ReverseEngineerModal';
 import { AdjustDishPhotoModal } from './components/AdjustDishPhotoModal';
+import { UsageStatusModal } from './components/UsageStatusModal';
+import { AdRewardModal } from './components/AdRewardModal';
 import { Ingredient, Recipe, AppTab } from './types';
 import { SupportedLanguage } from './utils/i18n';
 import { speechController } from './utils/speech';
+import {
+  UsageState,
+  getRefreshedUsageState,
+  consumeUsage,
+  rewardAdUsage,
+} from './utils/usageCookies';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<AppTab>('scanner');
@@ -84,6 +92,37 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
   const [isLoadingCustomRecipe, setIsLoadingCustomRecipe] = useState(false);
+
+  // Cookie-based App Usage & Energy System (3/3 start, 2-hr refresh countdown on minute, watch ads to reset)
+  const [usageState, setUsageState] = useState<UsageState>(() => getRefreshedUsageState());
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+  const [isAdModalOpen, setIsAdModalOpen] = useState(false);
+
+  // Periodic interval to refresh 2-hour timers live on the minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUsageState(getRefreshedUsageState());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleConsumeUsage = (): boolean => {
+    if (isPro) return true;
+    const current = getRefreshedUsageState();
+    if (current.count <= 0) {
+      setUsageState(current);
+      setIsUsageModalOpen(true);
+      return false;
+    }
+    const result = consumeUsage(isPro);
+    setUsageState(result.state);
+    return result.success;
+  };
+
+  const handleRewardEarned = () => {
+    const nextState = rewardAdUsage();
+    setUsageState(nextState);
+  };
 
   const [chefTip, setChefTip] = useState<string>('');
   const [suggestedCuisines, setSuggestedCuisines] = useState<string[]>([]);
@@ -291,6 +330,8 @@ export default function App() {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) return;
 
+    if (!handleConsumeUsage()) return;
+
     setIsSearchingRecipes(true);
     try {
       const payload = {
@@ -327,6 +368,8 @@ export default function App() {
       alert('Please check at least 1 ingredient first!');
       return;
     }
+
+    if (!handleConsumeUsage()) return;
 
     setIsLoadingCustomRecipe(true);
     try {
@@ -395,6 +438,8 @@ export default function App() {
           onOpenProModal={() => handleOpenProModal('reverse-engineer')}
           currentLanguage={currentLanguage}
           onLanguageChange={handleLanguageChange}
+          usageState={usageState}
+          onOpenUsageModal={() => setIsUsageModalOpen(true)}
         />
       )}
 
@@ -413,6 +458,8 @@ export default function App() {
             onOpenProModal={handleOpenProModal}
             onReverseEngineerCompleted={handleReverseEngineerCompleted}
             currentLanguage={currentLanguage}
+            onConsumeUsage={handleConsumeUsage}
+            onOpenUsageModal={() => setIsUsageModalOpen(true)}
           />
         )}
 
@@ -524,6 +571,33 @@ export default function App() {
         onActivateWithCode={handleActivateWithCode}
         proCode={proCode}
         targetFeature={proModalFeature}
+      />
+
+      {/* Cookie-based Usage & Credit Status Modal */}
+      <UsageStatusModal
+        isOpen={isUsageModalOpen}
+        onClose={() => setIsUsageModalOpen(false)}
+        usageState={usageState}
+        isPro={isPro}
+        onWatchAd={() => {
+          setIsUsageModalOpen(false);
+          setIsAdModalOpen(true);
+        }}
+        onOpenProModal={() => {
+          setIsUsageModalOpen(false);
+          setIsProModalOpen(true);
+        }}
+        currentLanguage={currentLanguage}
+      />
+
+      {/* Sponsor Ad Reward Player Modal to Reset +1 Counter */}
+      <AdRewardModal
+        isOpen={isAdModalOpen}
+        onClose={() => setIsAdModalOpen(false)}
+        onRewardEarned={handleRewardEarned}
+        currentCount={usageState.count}
+        maxCount={usageState.maxCount}
+        currentLanguage={currentLanguage}
       />
 
       {/* Mobile Floating Bottom Tab Bar */}

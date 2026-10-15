@@ -13,6 +13,7 @@ export interface RecipeStep {
   instruction: string;
   estimatedMinutes?: number;
   tip?: string;
+  actionType?: 'prep' | 'chop' | 'saute' | 'boil' | 'mix' | 'season' | 'bake' | 'plate' | 'wash' | 'rest' | 'grill' | string;
 }
 
 export interface RecipeIngredient {
