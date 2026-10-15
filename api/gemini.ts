@@ -52,14 +52,14 @@ async function parseRequestBody(req: any): Promise<any> {
   });
 }
 
-// Dynamic initialization to pick up GEMINI_KEY (or GEMINI_API_KEY)
+// Dynamic initialization to pick up GEMINI_API_KEY (or GEMINI_KEY)
 function getGeminiClient(): { ai: GoogleGenAI; keySource: string } {
-  const apiKey = (process.env.GEMINI_KEY || process.env.GEMINI_API_KEY || '').trim();
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || '').trim();
   if (!apiKey) {
-    throw new Error('GEMINI_KEY or GEMINI_API_KEY is not configured in environment variables');
+    throw new Error('GEMINI_API_KEY or GEMINI_KEY is not configured in environment variables');
   }
 
-  const keySource = process.env.GEMINI_KEY ? 'GEMINI_KEY' : 'GEMINI_API_KEY';
+  const keySource = process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'GEMINI_KEY';
 
   const ai = new GoogleGenAI({
     apiKey,
@@ -73,16 +73,12 @@ function getGeminiClient(): { ai: GoogleGenAI; keySource: string } {
   return { ai, keySource };
 }
 
-// Resilient generateContent helper that starts with ultra-fast gemini-3.5-flash
-// and cascades through available fallbacks with retry
+// Resilient generateContent helper starting with gemini-3.8-flash
 async function generateWithFallback(ai: GoogleGenAI, params: any) {
   const models = [
-    'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3-flash-preview',
-    'gemini-flash-latest',
     'gemini-3.8-flash',
     'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
   ];
   let lastError: any = null;
 
@@ -118,16 +114,16 @@ const RECIPE_IMAGE_FALLBACKS = [
 // 1. Check Key Status
 export function handleKeyStatus(_req: any, res: any) {
   try {
-    const apiKey = (process.env.GEMINI_KEY || process.env.GEMINI_API_KEY || '').trim();
+    const apiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || '').trim();
     if (!apiKey) {
       return sendJson(res, 200, {
         configured: false,
         status: 'missing_key',
-        message: 'No GEMINI_KEY or GEMINI_API_KEY found in environment variables.',
+        message: 'No GEMINI_API_KEY or GEMINI_KEY found in environment variables.',
       });
     }
 
-    const keySource = process.env.GEMINI_KEY ? 'GEMINI_KEY' : 'GEMINI_API_KEY';
+    const keySource = process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'GEMINI_KEY';
     const masked = apiKey.length > 8 ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '****';
 
     return sendJson(res, 200, {

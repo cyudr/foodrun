@@ -10,6 +10,7 @@ import {
   ZoomIn,
   ZoomOut,
   Sliders,
+  Key,
   Layers,
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
@@ -56,6 +57,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [currentCameraLabel, setCurrentCameraLabel] = useState<string>('Main Camera');
 
+  // Gemini API Key Status
+  const [keyStatus, setKeyStatus] = useState<{
+    configured: boolean;
+    status: string;
+    message: string;
+    keySource?: string;
+    maskedKey?: string;
+  } | null>(null);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(false);
+
   // Camera Zoom state (1.0x to 4.0x)
   const [zoom, setZoom] = useState<number>(1.0);
   const [minZoom, setMinZoom] = useState<number>(1.0);
@@ -68,24 +79,42 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const touchStartDistanceRef = useRef<number | null>(null);
   const touchStartZoomRef = useRef<number>(1.0);
 
+  // Check Gemini Key Status on mount
+  const checkKeyStatus = async () => {
+    setIsCheckingKey(true);
+    try {
+      const res = await fetch('/api/gemini.ts?action=status');
+      if (res.ok) {
+        const data = await res.json();
+        setKeyStatus(data);
+      } else {
+        setKeyStatus({
+          configured: false,
+          status: 'error',
+          message: 'Could not connect to Gemini backend.',
+        });
+      }
+    } catch {
+      setKeyStatus({
+        configured: false,
+        status: 'offline',
+        message: 'Could not reach server to verify Gemini key.',
+      });
+    } finally {
+      setIsCheckingKey(false);
+    }
+  };
+
+  useEffect(() => {
+    checkKeyStatus();
+  }, []);
+
   // Auto-open main camera when camera tab is active
   useEffect(() => {
     if (autoStart && !cameraActive && !previewImage && !cameraError) {
       startCamera('environment');
     }
   }, [autoStart]);
-
-  // Ensure video element receives stream immediately the moment camera opens
-  useEffect(() => {
-    if (videoRef.current && stream && cameraActive) {
-      if (videoRef.current.srcObject !== stream) {
-        videoRef.current.srcObject = stream;
-      }
-      videoRef.current.play().catch((err) => {
-        console.warn('Video playback error:', err);
-      });
-    }
-  }, [stream, cameraActive]);
 
   // Helper to discover and prioritize the primary Main Wide Camera
   const discoverCameras = async (): Promise<CameraDeviceInfo[]> => {
@@ -215,11 +244,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         stream.getTracks().forEach((track) => track.stop());
       }
 
-      // First discover available cameras to choose the primary main camera
+      // First enumerate devices if in environment mode and no deviceId provided
       let chosenDeviceId = targetDeviceId || selectedCameraId;
       if (mode === 'environment' && !chosenDeviceId) {
         const foundCameras = await discoverCameras();
-        if (foundCameras.length > 0 && foundCameras[0].deviceId) {
+        if (foundCameras.length > 0) {
+          // Select the primary main camera (index 0 after sorting)
           chosenDeviceId = foundCameras[0].deviceId;
           setSelectedCameraId(chosenDeviceId);
           setCurrentCameraLabel(foundCameras[0].label);
@@ -227,57 +257,32 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       }
 
       // Configure video constraints with standard 3:4 mobile portrait aspect ratio
-      const videoConstraints: MediaTrackConstraints =
-        chosenDeviceId && chosenDeviceId.trim().length > 0
-          ? {
-              deviceId: { ideal: chosenDeviceId },
-              facingMode: { ideal: mode },
-              aspectRatio: { ideal: 0.75 },
-              width: { ideal: 1920 },
-              height: { ideal: 1440 },
-            }
-          : {
-              facingMode: { ideal: mode },
-              aspectRatio: { ideal: 0.75 },
-              width: { ideal: 1920 },
-              height: { ideal: 1440 },
-            };
+      const videoConstraints: MediaTrackConstraints = chosenDeviceId
+        ? {
+            deviceId: { exact: chosenDeviceId },
+            aspectRatio: { ideal: 0.75 }, // Standard 3:4 mobile photo aspect
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+          }
+        : {
+            facingMode: { ideal: mode },
+            aspectRatio: { ideal: 0.75 },
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+          };
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
         audio: false,
       });
 
-      // Immediately connect stream to video element so image data starts flowing instantly
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play().catch((playErr) => {
-          console.warn('Initial video play caught:', playErr);
-        });
-      }
-
       setStream(mediaStream);
-      setCameraActive(true);
-      setFacingMode(mode);
-      setZoom(1.0);
 
       // Inspect hardware zoom capability and explicitly reset to 1.0x (unzoomed main view)
       const track = mediaStream.getVideoTracks()[0];
       if (track) {
-        if (track.getSettings) {
-          const settings = track.getSettings();
-          if (settings.deviceId && !selectedCameraId) {
-            setSelectedCameraId(settings.deviceId);
-          }
-        }
-
         if (track.label) {
-          const lbl = track.label.toLowerCase();
-          setCurrentCameraLabel(
-            lbl.includes('front') || lbl.includes('user') || lbl.includes('selfie')
-              ? 'Front Camera'
-              : 'Main Camera (1x)'
-          );
+          setCurrentCameraLabel(track.label.includes('front') ? 'Front Camera' : 'Main Camera (1x)');
         }
 
         if (track.getCapabilities) {
@@ -301,29 +306,34 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         }
       }
 
-      // Re-enumerate to capture fully populated labels now that permission is active
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        await videoRef.current.play();
+      }
+
+      setCameraActive(true);
+      setFacingMode(mode);
+      setZoom(1.0);
+
+      // Re-enumerate to capture populated labels now that permission is granted
       discoverCameras();
     } catch (err: any) {
       console.warn('Camera access error:', err);
       // Fallback: try basic environment request
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: { facingMode: 'environment' },
           audio: false,
         });
-
+        setStream(fallbackStream);
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
-          fallbackStream.getVideoTracks()[0]?.applyConstraints?.({}).catch(() => {});
-          videoRef.current.play().catch(() => {});
+          await videoRef.current.play();
         }
-
-        setStream(fallbackStream);
         setCameraActive(true);
         setFacingMode(mode);
         setZoom(1.0);
       } catch (fallbackErr: any) {
-        console.error('Camera fallback failed:', fallbackErr);
         setCameraError(
           'Camera access was not granted or not available. You can upload a photo or use a sample.'
         );
@@ -526,11 +536,41 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   return (
     <div className="w-full max-w-lg mx-auto pb-24">
+      {/* Gemini Key Status at the Start */}
+      <div className="px-4 pt-3 pb-1">
+        {keyStatus?.configured ? (
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] shadow-xs">
+            <div className="flex items-center gap-1.5 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Gemini AI: Connected &amp; Ready
+            </div>
+            <span className="text-[10px] text-emerald-700 font-mono">
+              {keyStatus.keySource}
+            </span>
+          </div>
+        ) : keyStatus && !keyStatus.configured ? (
+          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{keyStatus.message || 'Gemini Key not detected in environment.'}</span>
+            </div>
+            <button
+              onClick={checkKeyStatus}
+              disabled={isCheckingKey}
+              type="button"
+              className="px-2 py-1 rounded-lg bg-amber-200 text-amber-900 font-bold text-[10px] hover:bg-amber-300"
+            >
+              {isCheckingKey ? 'Checking...' : 'Recheck'}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       {/* Top Title Banner */}
-      <div className="px-4 pt-3 pb-2 text-center">
+      <div className="px-4 pt-2 pb-2 text-center">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
           <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          Deliciously spiced with Gemini
+          Gemini AI Food Vision
         </span>
         <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
           Snap Your Ingredients
@@ -548,29 +588,24 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           onTouchEnd={handleTouchEnd}
           className="relative w-full h-64 sm:h-72 max-w-md mx-auto bg-stone-950 rounded-2xl overflow-hidden shadow-xl border border-stone-800/80 flex flex-col items-center justify-center select-none touch-none"
         >
-          {/* Always-mounted Video element so videoRef.current is never null and receives stream immediately */}
-          <div
-            className={`w-full h-full overflow-hidden flex items-center justify-center bg-black ${
-              cameraActive && !previewImage ? 'block' : 'hidden'
-            }`}
-          >
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              autoPlay
-              style={{
-                transform: !hasHardwareZoom && zoom > 1.0 ? `scale(${zoom})` : 'none',
-                transformOrigin: 'center center',
-                transition: isPinching ? 'none' : 'transform 0.15s ease-out',
-              }}
-              className="w-full h-full object-cover pointer-events-none"
-            />
-          </div>
-
-          {/* Active Camera Viewfinder Overlays & Controls */}
-          {cameraActive && !previewImage && (
+          {/* Live Camera View */}
+          {cameraActive ? (
             <>
+              {/* Scaled Video for Digital Zoom Preview */}
+              <div className="w-full h-full overflow-hidden flex items-center justify-center bg-black">
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  style={{
+                    transform: !hasHardwareZoom && zoom > 1.0 ? `scale(${zoom})` : 'none',
+                    transformOrigin: 'center center',
+                    transition: isPinching ? 'none' : 'transform 0.15s ease-out',
+                  }}
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+              </div>
+
               {/* Viewfinder Overlay Targeting Frame */}
               <div className="absolute inset-6 border border-white/30 rounded-2xl pointer-events-none flex items-center justify-center">
                 <div className="w-8 h-8 border-t-2 border-l-2 border-amber-400 absolute top-0 left-0 rounded-tl-lg" />
@@ -677,16 +712,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               <button
                 onClick={toggleCameraFacing}
                 type="button"
-                className="absolute top-3 right-3 p-2.5 rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-all active:scale-95 cursor-pointer z-10"
+                className="absolute top-3 right-3 p-2.5 rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-all active:scale-95"
                 title="Switch Camera (Front/Back)"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
             </>
-          )}
-
-          {/* Preview of captured image */}
-          {previewImage && (
+          ) : previewImage ? (
+            /* Preview of captured image */
             <div className="relative w-full h-full">
               <img
                 src={previewImage}
@@ -708,10 +741,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 </div>
               )}
             </div>
-          )}
-
-          {/* Standby State with Default Picture when Camera is Not Activated */}
-          {!cameraActive && !previewImage && (
+          ) : (
+            /* Standby State with Default Picture when Camera is Not Activated */
             <div className="relative w-full h-full group overflow-hidden">
               {/* Default Culinary Food Photography */}
               <img

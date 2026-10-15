@@ -11,7 +11,7 @@ function sendJson(res: any, status: number, data: any) {
 }
 
 export default async function handler(_req: any, res: any) {
-  const hasGeminiKey = Boolean(process.env.GEMINI_KEY || process.env.GEMINI_API_KEY);
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_KEY);
 
   return sendJson(res, 200, {
     status: 'healthy',
