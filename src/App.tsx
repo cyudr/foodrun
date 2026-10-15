@@ -128,22 +128,15 @@ export default function App() {
     setIsSearchingRecipes(true);
     try {
       const payload = { action: 'find-recipes', ingredients: activeIngredients };
-      let response = await fetch('/api/gemini.ts', {
+      const response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => null);
-
-      if (!response || !response.ok) {
-        response = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to generate recipes with Gemini AI');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate recipes with Gemini AI');
       }
 
       const data = await response.json();
@@ -174,22 +167,15 @@ export default function App() {
         dietaryPreference: 'None',
       };
 
-      let response = await fetch('/api/gemini.ts', {
+      const response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => null);
-
-      if (!response || !response.ok) {
-        response = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to generate custom recipe');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate custom recipe');
       }
 
       const data = await response.json();

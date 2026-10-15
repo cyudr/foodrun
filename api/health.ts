@@ -1,11 +1,19 @@
-import { Router, Request, Response } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
 
-export const healthRouter = Router();
+function sendJson(res: any, status: number, data: any) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(status).json(data);
+  }
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  return res.end(JSON.stringify(data));
+}
 
-healthRouter.get('/', (_req: Request, res: Response) => {
+export default async function handler(_req: any, res: any) {
   const hasGeminiKey = Boolean(process.env.GEMINI_KEY || process.env.GEMINI_API_KEY);
 
-  res.status(200).json({
+  return sendJson(res, 200, {
     status: 'healthy',
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -15,6 +23,4 @@ healthRouter.get('/', (_req: Request, res: Response) => {
       nodeEnv: process.env.NODE_ENV || 'development',
     },
   });
-});
-
-export default healthRouter;
+}

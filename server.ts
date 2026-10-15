@@ -2,9 +2,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import healthRouter from './api/health.ts';
-import geminiRouter from './api/gemini.ts';
-import apiRouter from './api/index.ts';
+import geminiHandler from './api/gemini.ts';
+import healthHandler from './api/health.ts';
 
 dotenv.config();
 
@@ -13,34 +12,37 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: '35mb' }));
+app.use(express.urlencoded({ extended: true, limit: '35mb' }));
 
-// Mount Core API Routers with and without .ts extension
-app.use('/api/gemini.ts', geminiRouter);
-app.use('/api/gemini', geminiRouter);
-app.use('/api/health.ts', healthRouter);
-app.use('/api/health', healthRouter);
-app.use('/api', apiRouter);
+// Direct routes to /api/gemini.ts and /api/health.ts
+app.all('/api/gemini.ts*', (req, res) => geminiHandler(req, res));
+app.all('/api/gemini*', (req, res) => geminiHandler(req, res));
+app.all('/api/health.ts*', (req, res) => healthHandler(req, res));
+app.all('/api/health*', (req, res) => healthHandler(req, res));
 
-// Route recipe discovery and identification directly to Gemini
-app.use('/api/identify-ingredients', (req, res, next) => {
-  req.url = '/identify-ingredients';
-  geminiRouter(req, res, next);
+// Direct routing for recipe discovery and identification
+app.all('/api/identify-ingredients', (req, res) => {
+  req.body = { ...req.body, action: 'identify' };
+  return geminiHandler(req, res);
 });
 
-app.use('/api/recipes/find-recipes', (req, res, next) => {
-  req.url = '/find-recipes';
-  geminiRouter(req, res, next);
+app.all('/api/recipes/find-recipes', (req, res) => {
+  req.body = { ...req.body, action: 'find-recipes' };
+  return geminiHandler(req, res);
 });
 
-app.use('/api/recipes/generate-custom', (req, res, next) => {
-  req.url = '/generate-recipe';
-  geminiRouter(req, res, next);
+app.all('/api/recipes/generate-custom', (req, res) => {
+  req.body = { ...req.body, action: 'generate-recipe' };
+  return geminiHandler(req, res);
 });
 
-app.use('/api/tts', (req, res, next) => {
-  req.url = '/tts';
-  geminiRouter(req, res, next);
+app.all('/api/tts', (req, res) => {
+  req.body = { ...req.body, action: 'tts' };
+  return geminiHandler(req, res);
 });
+
+// Catch-all for /api to geminiHandler
+app.all('/api*', (req, res) => geminiHandler(req, res));
 
 // Host Vite or Static Build
 const isProduction = process.env.NODE_ENV === 'production';
@@ -62,7 +64,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SnapChef Server running on http://0.0.0.0:${PORT} (Gemini AI Powered)`);
+    console.log(`SnapChef Server running on http://0.0.0.0:${PORT} (Gemini AI API)`);
   });
 }
 

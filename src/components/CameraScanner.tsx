@@ -83,7 +83,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const checkKeyStatus = async () => {
     setIsCheckingKey(true);
     try {
-      const res = await fetch('/api/gemini/status');
+      const res = await fetch('/api/gemini.ts?action=status');
       if (res.ok) {
         const data = await res.json();
         setKeyStatus(data);
@@ -379,49 +379,87 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     const width = video.videoWidth || 720;
     const height = video.videoHeight || 960;
 
-    canvas.width = width;
-    canvas.height = height;
-
+    const maxDim = 1280;
+    let targetW = width;
+    let targetH = height;
+    if (targetW > maxDim || targetH > maxDim) {
+      if (targetW > targetH) {
+        targetH = Math.round((targetH * maxDim) / targetW);
+        targetW = maxDim;
+      } else {
+        targetW = Math.round((targetW * maxDim) / targetH);
+        targetH = maxDim;
+      }
+    }
+    canvas.width = targetW;
+    canvas.height = targetH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     if (hasHardwareZoom) {
-      ctx.drawImage(video, 0, 0, width, height);
+      ctx.drawImage(video, 0, 0, targetW, targetH);
     } else if (zoom > 1.0) {
-      // Digital zoom: crop centered frame into canvas
       const cropW = width / zoom;
       const cropH = height / zoom;
       const cropX = (width - cropW) / 2;
       const cropY = (height - cropH) / 2;
-      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, width, height);
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
     } else {
-      ctx.drawImage(video, 0, 0, width, height);
+      ctx.drawImage(video, 0, 0, targetW, targetH);
     }
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
 
     stopCamera();
     setPreviewImage(dataUrl);
     analyzeImage(dataUrl);
   };
 
-  // Handle uploaded image file
+  // Handle uploaded image file with auto-compression
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setPreviewImage(dataUrl);
-      stopCamera();
-      analyzeImage(dataUrl);
+      const originalDataUrl = event.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        const maxDim = 1280;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          setPreviewImage(compressed);
+          stopCamera();
+          analyzeImage(compressed);
+        } else {
+          setPreviewImage(originalDataUrl);
+          stopCamera();
+          analyzeImage(originalDataUrl);
+        }
+      };
+      img.src = originalDataUrl;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  // Send photo to Gemini serverless endpoint via /api/gemini
+  // Send photo to Gemini serverless endpoint via /api/gemini.ts
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
     setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
@@ -433,19 +471,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
       };
 
-      let response = await fetch('/api/gemini.ts', {
+      const response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => null);
-
-      if (!response || !response.ok) {
-        response = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

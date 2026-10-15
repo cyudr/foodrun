@@ -1,11 +1,60 @@
-import { Router, Request, Response } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { GoogleGenAI, Type } from '@google/genai';
 
-export const geminiRouter = Router();
+// Helper to send JSON across any runtime (Express, Vercel Serverless, Vite Dev Middleware, Node HTTP)
+function sendJson(res: any, status: number, data: any) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(status).json(data);
+  }
+  res.statusCode = status;
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Content-Type', 'application/json');
+  }
+  return res.end(JSON.stringify(data));
+}
+
+// Parse request body for stream-based runtimes (Node HTTP, Vite connect middleware)
+async function parseRequestBody(req: any): Promise<any> {
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    if (typeof req.on !== 'function') {
+      resolve({});
+      return;
+    }
+    req.on('data', (chunk: any) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      if (chunks.length === 0) {
+        resolve({});
+        return;
+      }
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve({});
+      }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
 
 // Dynamic initialization to pick up GEMINI_KEY (or GEMINI_API_KEY)
 function getGeminiClient(): { ai: GoogleGenAI; keySource: string } {
-  const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_KEY || process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) {
     throw new Error('GEMINI_KEY or GEMINI_API_KEY is not configured in environment variables');
   }
@@ -24,10 +73,17 @@ function getGeminiClient(): { ai: GoogleGenAI; keySource: string } {
   return { ai, keySource };
 }
 
-// Resilient generateContent helper that tries gemini-flash-latest first,
-// with graceful fallback to gemini-3.8-flash and gemini-3.1-flash-lite
+// Resilient generateContent helper that starts with ultra-fast gemini-3.5-flash
+// and cascades through available fallbacks with retry
 async function generateWithFallback(ai: GoogleGenAI, params: any) {
-  const models = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const models = [
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3-flash-preview',
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite',
+  ];
   let lastError: any = null;
 
   for (const model of models) {
@@ -38,8 +94,11 @@ async function generateWithFallback(ai: GoogleGenAI, params: any) {
       });
       return response;
     } catch (err: any) {
-      console.warn(`Model ${model} request failed, trying next fallback:`, err?.message || err);
+      console.warn(`[Gemini API] Model ${model} failed, trying next fallback:`, err?.message || err);
       lastError = err;
+      if (err?.message?.includes('503') || err?.status === 503) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
     }
   }
 
@@ -56,12 +115,12 @@ const RECIPE_IMAGE_FALLBACKS = [
   'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=800&q=80',
 ];
 
-// Check Gemini Key Status
-export function handleKeyStatus(_req: Request, res: Response) {
+// 1. Check Key Status
+export function handleKeyStatus(_req: any, res: any) {
   try {
-    const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = (process.env.GEMINI_KEY || process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) {
-      return res.json({
+      return sendJson(res, 200, {
         configured: false,
         status: 'missing_key',
         message: 'No GEMINI_KEY or GEMINI_API_KEY found in environment variables.',
@@ -71,7 +130,7 @@ export function handleKeyStatus(_req: Request, res: Response) {
     const keySource = process.env.GEMINI_KEY ? 'GEMINI_KEY' : 'GEMINI_API_KEY';
     const masked = apiKey.length > 8 ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '****';
 
-    return res.json({
+    return sendJson(res, 200, {
       configured: true,
       status: 'ready',
       keySource,
@@ -79,7 +138,7 @@ export function handleKeyStatus(_req: Request, res: Response) {
       message: 'Gemini AI connection is active and ready.',
     });
   } catch (err: any) {
-    return res.status(500).json({
+    return sendJson(res, 500, {
       configured: false,
       status: 'error',
       message: err?.message || 'Error checking Gemini key status',
@@ -87,24 +146,37 @@ export function handleKeyStatus(_req: Request, res: Response) {
   }
 }
 
-// 1. Photo Analysis: Identify Ingredients
-export async function handleIdentify(req: Request, res: Response) {
+// 2. Photo Analysis: Identify Ingredients
+export async function handleIdentify(req: any, res: any) {
   try {
-    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+    const body = req.body || {};
+    const rawImage = body.imageBase64 || body.image;
 
-    if (!imageBase64) {
-      return res.status(400).json({ error: 'Image data is required' });
+    if (!rawImage || typeof rawImage !== 'string') {
+      return sendJson(res, 400, { error: 'Image data is required (imageBase64)' });
     }
 
     const { ai } = getGeminiClient();
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+
+    let cleanMime = body.mimeType || 'image/jpeg';
+    let cleanBase64 = rawImage;
+
+    const mimeMatch = rawImage.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/);
+    if (mimeMatch) {
+      cleanMime = mimeMatch[1];
+      cleanBase64 = rawImage.slice(mimeMatch[0].length);
+    } else {
+      cleanBase64 = rawImage.replace(/^data:[^;]+;base64,/, '');
+    }
+
+    console.log(`[Gemini Vision] Analyzing image: ~${Math.round(cleanBase64.length / 1024)} KB, MIME: ${cleanMime}`);
 
     const response = await generateWithFallback(ai, {
       contents: {
         parts: [
           {
             inlineData: {
-              mimeType: mimeType || 'image/jpeg',
+              mimeType: cleanMime,
               data: cleanBase64,
             },
           },
@@ -152,10 +224,23 @@ Return valid JSON according to the schema.`,
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    let rawText = response.text || '{}';
+    rawText = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      rawText = jsonMatch[0];
+    }
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(rawText || '{}');
+    } catch {
+      parsed = { ingredients: [] };
+    }
+
     const ingredientsWithIds = (parsed.ingredients || []).map((item: any, idx: number) => ({
       id: `ing-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-      name: item.name || 'Unknown Ingredient',
+      name: item.name || 'Ingredient',
       category: item.category || 'Produce',
       confidence: item.confidence || 'high',
       state: item.state || 'Fresh',
@@ -163,26 +248,30 @@ Return valid JSON according to the schema.`,
       checked: true,
     }));
 
-    return res.json({
+    return sendJson(res, 200, {
       ingredients: ingredientsWithIds,
       suggestedCuisines: parsed.suggestedCuisines || ['Comfort Food', 'Quick Dinner'],
-      chefTip: parsed.chefTip || 'Ensure vegetables are washed and prepped before starting your recipe.',
+      chefTip: parsed.chefTip || 'Fresh ingredients deliver the brightest flavors.',
     });
   } catch (error: any) {
     console.error('Error in handleIdentify:', error);
-    return res.status(500).json({
-      error: error?.message || 'Failed to analyze image with Gemini',
+    const isOverload = error?.message?.includes('503') || error?.status === 503;
+    return sendJson(res, isOverload ? 503 : 500, {
+      error: isOverload
+        ? 'Gemini AI is temporarily experiencing high traffic. Please tap snap photo again in a few seconds.'
+        : error?.message || 'Failed to analyze image with Gemini',
     });
   }
 }
 
-// 2. Recipe Generation: Multi-Recipe Discovery via Gemini
-export async function handleFindRecipes(req: Request, res: Response) {
+// 3. Multi-Recipe Discovery via Gemini
+export async function handleFindRecipes(req: any, res: any) {
   try {
-    const { ingredients = [], preferences = '' } = req.body;
+    const body = req.body || {};
+    const { ingredients = [], preferences = '' } = body;
 
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
-      return res.status(400).json({ error: 'At least one ingredient is required' });
+      return sendJson(res, 400, { error: 'At least one ingredient is required' });
     }
 
     const { ai } = getGeminiClient();
@@ -263,12 +352,24 @@ Return pure JSON matching the schema.`;
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    let rawText = response.text || '{}';
+    rawText = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      rawText = jsonMatch[0];
+    }
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(rawText || '{}');
+    } catch {
+      parsed = { recipes: [] };
+    }
+
     const processedRecipes = (parsed.recipes || []).map((recipe: any, index: number) => {
       const totalIng = (recipe.ingredients || []).length;
       const matched = (recipe.ingredients || []).filter((i: any) => i.hasIngredient).length;
       const missing = (recipe.ingredients || []).filter((i: any) => !i.hasIngredient && !i.isStaple).length;
-
       const fallbackImage = RECIPE_IMAGE_FALLBACKS[index % RECIPE_IMAGE_FALLBACKS.length];
 
       return {
@@ -294,24 +395,30 @@ Return pure JSON matching the schema.`;
 
     processedRecipes.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
 
-    return res.json({
+    return sendJson(res, 200, {
       recipes: processedRecipes,
       totalFound: processedRecipes.length,
       userIngredients: ingredients,
     });
   } catch (error: any) {
     console.error('Error in handleFindRecipes:', error);
-    return res.status(500).json({ error: error?.message || 'Failed to generate recipes with Gemini' });
+    const isOverload = error?.message?.includes('503') || error?.status === 503;
+    return sendJson(res, isOverload ? 503 : 500, {
+      error: isOverload
+        ? 'Gemini AI is temporarily busy. Please tap search recipes again in a moment.'
+        : error?.message || 'Failed to generate recipes with Gemini',
+    });
   }
 }
 
-// 3. Single Custom Recipe Generation
-export async function handleCustomRecipe(req: Request, res: Response) {
+// 4. Single Custom Recipe Generation
+export async function handleCustomRecipe(req: any, res: any) {
   try {
-    const { ingredients = [], mealType = 'Any', dietaryPreference = 'None' } = req.body;
+    const body = req.body || {};
+    const { ingredients = [], mealType = 'Any', dietaryPreference = 'None' } = body;
 
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
-      return res.status(400).json({ error: 'Ingredients list is required' });
+      return sendJson(res, 400, { error: 'Ingredients list is required' });
     }
 
     const { ai } = getGeminiClient();
@@ -379,7 +486,20 @@ Return purely JSON matching the schema.`;
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    let rawText = response.text || '{}';
+    rawText = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      rawText = jsonMatch[0];
+    }
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(rawText || '{}');
+    } catch {
+      parsed = {};
+    }
+
     const customRecipe = {
       id: `custom-${Date.now()}`,
       title: parsed.title || 'Gemini Chef Special Creation',
@@ -400,19 +520,25 @@ Return purely JSON matching the schema.`;
       chefNotes: parsed.chefNotes || 'Adjust seasoning to taste.',
     };
 
-    return res.json({ recipe: customRecipe });
+    return sendJson(res, 200, { recipe: customRecipe });
   } catch (error: any) {
     console.error('Error in handleCustomRecipe:', error);
-    return res.status(500).json({ error: error?.message || 'Failed to generate custom recipe' });
+    const isOverload = error?.message?.includes('503') || error?.status === 503;
+    return sendJson(res, isOverload ? 503 : 500, {
+      error: isOverload
+        ? 'Gemini AI is temporarily busy. Please try generating again in a moment.'
+        : error?.message || 'Failed to generate custom recipe',
+    });
   }
 }
 
-// 4. Voice TTS via Gemini
-export async function handleTts(req: Request, res: Response) {
+// 5. Voice TTS via Gemini
+export async function handleTts(req: any, res: any) {
   try {
-    const { text, voice = 'Kore' } = req.body;
+    const body = req.body || {};
+    const { text, voice = 'Kore' } = body;
     if (!text) {
-      return res.status(400).json({ error: 'Text is required for TTS' });
+      return sendJson(res, 400, { error: 'Text is required for TTS' });
     }
 
     const { ai } = getGeminiClient();
@@ -444,54 +570,57 @@ export async function handleTts(req: Request, res: Response) {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) {
-      return res.status(500).json({ error: 'No audio returned from Gemini TTS' });
+      return sendJson(res, 500, { error: 'No audio returned from Gemini TTS' });
     }
 
-    return res.json({
+    return sendJson(res, 200, {
       audioUrl: `data:audio/wav;base64,${base64Audio}`,
     });
   } catch (err: any) {
     console.warn('TTS request error:', err?.message);
-    return res.status(500).json({ error: 'TTS fallback needed' });
+    return sendJson(res, 500, { error: 'TTS fallback needed' });
   }
 }
 
-// Universal Serverless Dispatcher for /api/gemini
-export async function handleGeminiServerless(req: Request, res: Response) {
-  if (req.method === 'GET') {
-    return handleKeyStatus(req, res);
+// Universal Serverless Function Handler for /api/gemini.ts
+// Compatible with Vercel Serverless, Vite Dev Middleware, Netlify, and Express
+export default async function handler(req: any, res: any) {
+  // Set CORS headers
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
 
+  if (req.method === 'OPTIONS') {
+    if (typeof res.status === 'function') return res.status(200).end();
+    res.statusCode = 200;
+    return res.end();
+  }
+
+  // Parse body across stream and parsed body types
+  req.body = await parseRequestBody(req);
+
+  const url = req.url || '';
   const action = req.body?.action;
-  if (action === 'status' || action === 'check-key') {
+
+  if (req.method === 'GET' || url.includes('status') || action === 'status' || action === 'check-key') {
     return handleKeyStatus(req, res);
   }
-  if (action === 'identify' || action === 'identify-ingredients' || req.body?.imageBase64) {
+  if (url.includes('identify') || action === 'identify' || action === 'identify-ingredients' || req.body?.imageBase64 || req.body?.image) {
     return handleIdentify(req, res);
   }
-  if (action === 'generate-recipe' || action === 'custom-recipe') {
+  if (url.includes('generate-recipe') || action === 'generate-recipe' || action === 'custom-recipe') {
     return handleCustomRecipe(req, res);
   }
-  if (action === 'find-recipes' || action === 'search-recipes' || req.body?.ingredients) {
+  if (url.includes('find-recipes') || action === 'find-recipes' || action === 'search-recipes' || (req.body?.ingredients && !req.body?.imageBase64)) {
     return handleFindRecipes(req, res);
   }
-  if (action === 'tts' || req.body?.text) {
+  if (url.includes('tts') || action === 'tts' || req.body?.text) {
     return handleTts(req, res);
   }
 
-  return res.status(400).json({
-    error: 'Missing or unrecognized action. Expected action: identify, find-recipes, generate-recipe, or tts',
+  return sendJson(res, 400, {
+    error: 'Missing or unrecognized action. Expected: identify, find-recipes, generate-recipe, or tts',
   });
 }
-
-// Mount routes on router
-geminiRouter.get('/status', handleKeyStatus);
-geminiRouter.all('/', handleGeminiServerless);
-geminiRouter.post('/identify', handleIdentify);
-geminiRouter.post('/identify-ingredients', handleIdentify);
-geminiRouter.post('/find-recipes', handleFindRecipes);
-geminiRouter.post('/search-recipes', handleFindRecipes);
-geminiRouter.post('/generate-recipe', handleCustomRecipe);
-geminiRouter.post('/tts', handleTts);
-
-export default geminiRouter;
