@@ -25,7 +25,6 @@ interface CameraScannerProps {
   setIsAnalyzing: (analyzing: boolean) => void;
   onViewPantry: () => void;
   pantryCount: number;
-  autoStart?: boolean;
 }
 
 interface CameraDeviceInfo {
@@ -40,7 +39,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   setIsAnalyzing,
   onViewPantry,
   pantryCount,
-  autoStart = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,13 +65,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Pinch-to-zoom tracking refs
   const touchStartDistanceRef = useRef<number | null>(null);
   const touchStartZoomRef = useRef<number>(1.0);
-
-  // Auto-open main camera when camera tab is active
-  useEffect(() => {
-    if (autoStart && !cameraActive && !previewImage && !cameraError) {
-      startCamera('environment');
-    }
-  }, [autoStart]);
 
   // Ensure video element receives stream immediately the moment camera opens
   useEffect(() => {
