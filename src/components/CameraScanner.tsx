@@ -41,7 +41,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   setIsAnalyzing,
   onViewPantry,
   pantryCount,
-  autoStart = true,
+  autoStart = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -580,13 +580,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         </p>
       </div>
 
-      {/* Main Viewfinder with 3:4 Mobile Aspect Ratio to prevent distortion */}
+      {/* Compact Viewfinder Region */}
       <div className="px-4 mt-2">
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="relative aspect-3/4 w-full max-h-[65vh] bg-stone-950 rounded-3xl overflow-hidden shadow-2xl border border-stone-800 flex flex-col items-center justify-center select-none touch-none"
+          className="relative w-full h-64 sm:h-72 max-w-md mx-auto bg-stone-950 rounded-2xl overflow-hidden shadow-xl border border-stone-800/80 flex flex-col items-center justify-center select-none touch-none"
         >
           {/* Live Camera View */}
           {cameraActive ? (
@@ -742,28 +742,45 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               )}
             </div>
           ) : (
-            /* Idle Placeholder - Tapping the icon at the middle auto-opens the camera */
-            <div
-              onClick={() => startCamera('environment')}
-              className="p-8 text-center text-stone-400 flex flex-col items-center cursor-pointer group select-none"
-            >
-              <div className="relative mb-3">
-                <div className="absolute -inset-2 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-full blur-md opacity-50 group-hover:opacity-80 transition duration-300 animate-pulse" />
-                <button
-                  type="button"
-                  onClick={() => startCamera('environment')}
-                  className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-2xl group-hover:scale-110 active:scale-95 transition-all"
-                  title="Click to open camera"
-                >
-                  <Camera className="w-10 h-10 stroke-[2.2]" />
-                </button>
+            /* Standby State with Default Picture when Camera is Not Activated */
+            <div className="relative w-full h-full group overflow-hidden">
+              {/* Default Culinary Food Photography */}
+              <img
+                src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80"
+                alt="Fresh culinary ingredients standby"
+                className="w-full h-full object-cover filter brightness-[0.65] contrast-[1.05] transition-transform duration-500 group-hover:scale-105"
+              />
+
+              {/* Standby Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/30 to-stone-950/60 flex flex-col items-center justify-between p-3.5 text-center">
+                {/* Standby Badge */}
+                <div className="self-center">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-black/60 backdrop-blur-md text-amber-300 border border-amber-500/30 shadow-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Camera Standby
+                  </span>
+                </div>
+
+                {/* Central Button to Initialise Camera */}
+                <div className="flex flex-col items-center my-auto">
+                  <button
+                    type="button"
+                    onClick={() => startCamera('environment')}
+                    className="px-5 py-2.5 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-extrabold text-sm shadow-xl shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 stroke-[2.2]" />
+                    <span>Initialise Camera</span>
+                  </button>
+                  <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
+                    Tap to start live scanner &amp; zoom
+                  </p>
+                </div>
+
+                {/* Bottom hint */}
+                <div className="text-[10px] text-stone-300/80 font-medium">
+                  Main Wide Camera (1x) • AI Ingredient Detection
+                </div>
               </div>
-              <h3 className="text-white font-extrabold text-base group-hover:text-amber-400 transition-colors">
-                Tap Icon to Open Camera
-              </h3>
-              <p className="text-stone-400 text-xs mt-1 max-w-xs">
-                Tap the icon in the middle to start main camera with pinch zoom
-              </p>
             </div>
           )}
 
@@ -819,7 +836,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50"
             >
               <Camera className="w-4 h-4" />
-              Open Camera
+              Initialise Camera
             </button>
 
             <button
