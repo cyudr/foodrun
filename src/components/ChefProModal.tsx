@@ -57,7 +57,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
           setStatusSuccess(result.message || 'Invitation code verified! Chef Pro unlocked.');
           setInviteCode('');
         } else {
-          setStatusError(result.message || 'Invalid invitation code. Codes must match an authorized vibe_* pass.');
+          setStatusError(result.message || 'Invalid invitation code. Please check your code and try again.');
         }
       } else {
         // Fallback direct verification against /api/gemini.ts
@@ -77,7 +77,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
           onTogglePro();
           setInviteCode('');
         } else {
-          setStatusError(data.error || 'Invalid invitation code. Codes must match an authorized vibe_* pass.');
+          setStatusError(data.error || 'Invalid invitation code. Please check your code and try again.');
         }
       }
     } catch (err: any) {
@@ -141,15 +141,12 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
           {/* Invitation Code Entry Box (When Not Pro) */}
           {!isPro ? (
             <div className="p-4 rounded-2xl bg-stone-950/80 border border-amber-500/30 shadow-inner">
-              <div className="flex items-center gap-2 mb-2 text-amber-400">
+              <div className="flex items-center gap-2 mb-3 text-amber-400">
                 <KeyRound className="w-4 h-4" />
                 <span className="text-xs font-black uppercase tracking-wider">
                   Enter Invitation Code
                 </span>
               </div>
-              <p className="text-[11px] text-stone-400 mb-3 leading-relaxed">
-                Chef Pro features are gated by invitation passcodes (configured via environment variables starting with <code className="text-amber-300 font-mono">vibe_*</code>).
-              </p>
 
               <form onSubmit={handleSubmitCode} className="space-y-3">
                 <div className="relative">
@@ -160,7 +157,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
                       setInviteCode(e.target.value);
                       setStatusError(null);
                     }}
-                    placeholder="Enter invitation code (e.g. CHEF2026)"
+                    placeholder="Enter invitation code..."
                     disabled={isVerifying}
                     className="w-full py-2.5 pl-3.5 pr-24 rounded-xl bg-stone-900 border border-stone-700 text-white placeholder-stone-500 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 uppercase tracking-wider"
                   />
@@ -209,7 +206,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   </div>
                   <p className="text-[11px] text-stone-300 mt-0.5">
-                    Verified Pass: <span className="font-mono font-bold text-amber-200">{proCode || 'vibe_pass'}</span>
+                    Verified Pass: <span className="font-mono font-bold text-amber-200">{proCode || 'Active'}</span>
                   </p>
                 </div>
               </div>

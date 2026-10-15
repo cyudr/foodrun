@@ -23,6 +23,7 @@ This document chronologically collates all user prompts, feature requests, desig
 | **15** | "Continue where you left off. Git push when done" | Remote Git Repository Synchronization | Completed |
 | **16** | "Add in language toggle, for Chinese, malay, Korean, Tamil and Japanese. Apply this to voice, recipe and ingredients too" | Multilingual Intelligence (i18n), Multilingual Speech & Prompts | Completed |
 | **17** | "Put the try pro feature under invitation code, the codes need to match against environment variables with name starting with 'vibe_'" | Environment Gated Pro Invitation Verification | Completed |
+| **18** | "Do not hardcore the vibe_ codes anywhere in codes, especially .env and .envexample, I will provide them through environment variables" | Zero Hardcoded Fallbacks & Pure Runtime Env Matching | Completed |
 
 ---
 
@@ -210,8 +211,7 @@ This document chronologically collates all user prompts, feature requests, desig
   - **Server-Side Code Verification Endpoint (`/api/gemini.ts`)**:
     * Added `handleVerifyInviteCode` endpoint (`action: "verify-invite-code"`).
     * Inspects `process.env` dynamically for all variables starting with `vibe_` or `VIBE_`.
-    * Case-insensitively validates entered code against environment variable values, variable names, and suffix identifiers.
-    * Configured sample/default codes in `.env` and `.env.example` (`VIBE_CHEF="CHEF2026"`, `VIBE_VIP="VIPCHEF"`, `VIBE_EARLY_ACCESS="VIBECOOK"`).
+    * Case-insensitively validates entered code against runtime environment variable values, variable names, and suffix identifiers.
   - **Redesigned Chef Pro Modal (`ChefProModal.tsx`)**:
     * Replaced one-click toggle with a secure Invitation Code entry portal.
     * Features instant verification with spinner state, clear error alerts, and success badge.
@@ -219,5 +219,15 @@ This document chronologically collates all user prompts, feature requests, desig
   - **Persistence & State Integration (`App.tsx`)**:
     * Integrates `isPro` and `proCode` state stored in `localStorage` (`snapchef_is_pro`, `snapchef_pro_code`).
     * Seamlessly protects reverse-engineering features, photo restyling, and Pro badge.
+
+---
+
+### Prompt 18: Pure Dynamic Environment Variable Sourcing (Zero Hardcoded Codes)
+- **User Request:**  
+  *Do not hardcore the vibe_ codes anywhere in codes, especially .env and .envexample, I will provide them through environment variables*
+- **Key Deliverables:**
+  - **Clean Codebase**: Removed all hardcoded fallback codes from `api/gemini.ts`, `.env.example`, and deleted `.env`.
+  - **Strict Dynamic Validation**: `/api/gemini.ts` strictly queries `process.env` keys starting with `vibe_` or `VIBE_` injected at runtime by the user/host environment.
+  - **Sanitized UI**: Removed code examples from input placeholders (`ChefProModal.tsx`), maintaining clean, secret-free frontend code.
 
 

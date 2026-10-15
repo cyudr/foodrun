@@ -1121,15 +1121,6 @@ export function handleVerifyInviteCode(req: any, res: any) {
       }
     }
 
-    // Default backup codes if no vibe_* env vars are currently set in the environment
-    if (!isMatch && vibeEnvKeys.length === 0) {
-      const defaultCodes = ['chef2026', 'vibepro', 'vipchef', 'vibecook'];
-      if (defaultCodes.includes(cleanInput)) {
-        isMatch = true;
-        matchedEnvName = 'VIBE_CHEF';
-      }
-    }
-
     if (isMatch) {
       return sendJson(res, 200, {
         valid: true,
@@ -1139,7 +1130,7 @@ export function handleVerifyInviteCode(req: any, res: any) {
     } else {
       return sendJson(res, 403, {
         valid: false,
-        error: 'Invalid invitation code. Codes must match an active vibe_* pass.',
+        error: 'Invalid invitation code. Please check your code and try again.',
       });
     }
   } catch (err: any) {

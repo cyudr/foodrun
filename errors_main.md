@@ -19,7 +19,8 @@ This document catalogs all technical issues, runtime bugs, and errors encountere
 | **ERR-10** | Choose photo allows select photo but photo cannot be loaded for detection | `imageProcessor.ts` / `CameraScanner.tsx` | HEIC format from iPhones, memory overload on raw files, missing timeout/error handling | Implemented `processImageFile` with dynamic HEIC conversion via `heic2any`, canvas downsampling to 1280px, and timeout guards |
 | **ERR-11** | Dish photos static / need reverse-engineering recipe from photo | `dishPhotos.ts` / `api/gemini.ts` | Dish photos were hardcoded fallback loops; food dish photos lacked dedicated deconstruction | Built `resolveDishPhoto`, `adjustDishPhotoPresentation`, `ReverseEngineerModal`, `ChefProModal`, and `handleReverseEngineerRecipe` endpoint |
 | **ERR-12** | Multilingual Voice Synthesis & Recognition Accent/Prompt Mismatch | `speech.ts` / `i18n.ts` / `api/gemini.ts` | Web Speech API hardcoded to English and Gemini generated English-only recipes and ingredients regardless of user preference | Built full i18n engine with native BCP-47 voice tags, multi-lingual keyword recognition, and strict Gemini prompt localization for EN, ZH, MS, KO, TA, and JA |
-| **ERR-13** | Chef Pro Free Demo Pass Ungated / Need Environment-Based Invitation Code | `ChefProModal.tsx` / `api/gemini.ts` / `.env` | Chef Pro tier was previously open via 1-click toggle with no invitation verification | Implemented secure serverless endpoint `/api/gemini.ts?action=verify-invite-code` verifying against any environment variables starting with `vibe_*` |
+| **ERR-13** | Chef Pro Free Demo Pass Ungated / Need Environment-Based Invitation Code | `ChefProModal.tsx` / `api/gemini.ts` | Chef Pro tier was previously open via 1-click toggle with no invitation verification | Implemented secure serverless endpoint `/api/gemini.ts?action=verify-invite-code` verifying against any environment variables starting with `vibe_*` |
+| **ERR-14** | Hardcoded Fallback Invitation Codes in Codebase | `api/gemini.ts` / `.env.example` / `.env` | Provisional sample fallback codes were present in code and example env file | Removed all hardcoded codes and fallbacks; codes are purely evaluated against dynamic environment variables |
 
 ---
 
@@ -307,8 +308,25 @@ The Pro status was managed purely via a client-side boolean toggle in `ChefProMo
 #### Resolution:
 1. Implemented `handleVerifyInviteCode()` in `api/gemini.ts` (`action: "verify-invite-code"`).
 2. Scans `process.env` dynamically for all environment keys starting with `vibe_` or `VIBE_` and case-insensitively compares the input against variable values, keys, and suffix names.
-3. Added sample invitation codes to `.env.example` and `.env` (`VIBE_CHEF="CHEF2026"`, `VIBE_VIP="VIPCHEF"`, `VIBE_EARLY_ACCESS="VIBECOOK"`).
+3. Ensured zero hardcoded codes in source code, `.env`, or `.env.example`; codes are sourced exclusively from runtime environment variables.
 4. Redesigned `ChefProModal.tsx` with an Invitation Code input field, real-time verification feedback, error handling, and verified pass badge.
+
+---
+
+### ERR-14: Hardcoded Fallback Invitation Codes in Codebase
+
+#### Symptom:
+Sample invitation codes were previously placed in `.env.example`, `.env`, and as code fallbacks in `api/gemini.ts`. The requirement dictates that codes must NEVER be hardcoded anywhere in the codebase or environment example files.
+
+#### Root Cause:
+Provisional sample fallback values were introduced for initial testing, which violated the requirement to only match against environment variables supplied at runtime.
+
+#### Resolution:
+1. Removed all hardcoded fallback codes from `api/gemini.ts`.
+2. Removed all `VIBE_*` entries from `.env.example` and deleted the local `.env` file.
+3. Updated input placeholder in `ChefProModal.tsx` to generic text (`Enter invitation code...`).
+4. `handleVerifyInviteCode` now strictly inspects `process.env` keys starting with `vibe_` or `VIBE_` provided directly by the user via environment settings.
+
 
 
 
