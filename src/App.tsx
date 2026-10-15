@@ -232,7 +232,7 @@ export default function App() {
             setIsAnalyzing={setIsAnalyzing}
             onViewPantry={() => setCurrentTab('pantry')}
             pantryCount={ingredients.length}
-            autoStart={false}
+            autoStart={true}
           />
         )}
 
