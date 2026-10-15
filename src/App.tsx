@@ -15,9 +15,22 @@ import { ChefProModal } from './components/ChefProModal';
 import { ReverseEngineerModal } from './components/ReverseEngineerModal';
 import { AdjustDishPhotoModal } from './components/AdjustDishPhotoModal';
 import { Ingredient, Recipe, AppTab } from './types';
+import { SupportedLanguage } from './utils/i18n';
+import { speechController } from './utils/speech';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<AppTab>('scanner');
+
+  // Multilingual Language state (English, Chinese, Malay, Korean, Tamil, Japanese)
+  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>(() => {
+    try {
+      const saved = localStorage.getItem('snapchef_language') as SupportedLanguage;
+      return saved && ['en', 'zh', 'ms', 'ko', 'ta', 'ja'].includes(saved) ? saved : 'en';
+    } catch {
+      return 'en';
+    }
+  });
+
   const [ingredients, setIngredients] = useState<Ingredient[]>(() => {
     try {
       const saved = localStorage.getItem('snapchef_ingredients');
@@ -40,7 +53,7 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [activeCookingRecipe, setActiveCookingRecipe] = useState<Recipe | null>(null);
 
-  // Chef Pro / Premium tier state
+  // Chef Pro / Premium tier state gated by invitation codes
   const [isPro, setIsPro] = useState<boolean>(() => {
     try {
       return localStorage.getItem('snapchef_is_pro') === 'true';
@@ -48,6 +61,15 @@ export default function App() {
       return false;
     }
   });
+
+  const [proCode, setProCode] = useState<string>(() => {
+    try {
+      return localStorage.getItem('snapchef_pro_code') || '';
+    } catch {
+      return '';
+    }
+  });
+
   const [isProModalOpen, setIsProModalOpen] = useState(false);
   const [proModalFeature, setProModalFeature] = useState<string>('reverse-engineer');
 
@@ -65,6 +87,22 @@ export default function App() {
 
   const [chefTip, setChefTip] = useState<string>('');
   const [suggestedCuisines, setSuggestedCuisines] = useState<string[]>([]);
+
+  // Keep speechController in sync with active language
+  useEffect(() => {
+    speechController.setLanguage(currentLanguage);
+  }, [currentLanguage]);
+
+  // Persist language to localStorage
+  const handleLanguageChange = (lang: SupportedLanguage) => {
+    setCurrentLanguage(lang);
+    try {
+      localStorage.setItem('snapchef_language', lang);
+    } catch {
+      // ignore
+    }
+    speechController.setLanguage(lang);
+  };
 
   // Persist ingredients to localStorage
   useEffect(() => {
@@ -84,16 +122,65 @@ export default function App() {
     }
   }, [favorites]);
 
+  // Verify invitation code against server env vars starting with vibe_
+  const handleActivateWithCode = async (
+    code: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const response = await fetch('/api/gemini.ts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify-invite-code',
+          code,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.valid) {
+        setIsPro(true);
+        setProCode(code);
+        try {
+          localStorage.setItem('snapchef_is_pro', 'true');
+          localStorage.setItem('snapchef_pro_code', code);
+        } catch {
+          // ignore
+        }
+        return {
+          success: true,
+          message: data.message || 'Invitation code verified! Welcome to Chef Pro.',
+        };
+      } else {
+        return {
+          success: false,
+          message: data.error || 'Invalid invitation code. Codes must match an authorized vibe_* pass.',
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Verification connection error.',
+      };
+    }
+  };
+
+  // Toggle or deactivate Pro
   const handleTogglePro = () => {
-    setIsPro((prev) => {
-      const next = !prev;
+    if (isPro) {
+      // Deactivate Pro
+      setIsPro(false);
+      setProCode('');
       try {
-        localStorage.setItem('snapchef_is_pro', String(next));
+        localStorage.removeItem('snapchef_is_pro');
+        localStorage.removeItem('snapchef_pro_code');
       } catch {
         // ignore
       }
-      return next;
-    });
+    } else {
+      // Open modal for entering invitation code
+      setIsProModalOpen(true);
+    }
   };
 
   const handleOpenProModal = (feature: string = 'reverse-engineer') => {
@@ -199,14 +286,18 @@ export default function App() {
     }
   };
 
-  // Generate recipes via Gemini AI
+  // Generate recipes via Gemini AI with active language
   const handleFindGeminiRecipes = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) return;
 
     setIsSearchingRecipes(true);
     try {
-      const payload = { action: 'find-recipes', ingredients: activeIngredients };
+      const payload = {
+        action: 'find-recipes',
+        ingredients: activeIngredients,
+        language: currentLanguage,
+      };
       const response = await fetch('/api/gemini.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -229,7 +320,7 @@ export default function App() {
     }
   };
 
-  // Generate Bespoke Custom Recipe with Gemini AI Chef
+  // Generate Bespoke Custom Recipe with Gemini AI Chef with active language
   const handleGenerateCustomRecipe = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) {
@@ -244,6 +335,7 @@ export default function App() {
         ingredients: activeIngredients,
         mealType: 'Dinner',
         dietaryPreference: 'None',
+        language: currentLanguage,
       };
 
       const response = await fetch('/api/gemini.ts', {
@@ -301,6 +393,8 @@ export default function App() {
           onGoToScanner={() => setCurrentTab('scanner')}
           isPro={isPro}
           onOpenProModal={() => handleOpenProModal('reverse-engineer')}
+          currentLanguage={currentLanguage}
+          onLanguageChange={handleLanguageChange}
         />
       )}
 
@@ -318,6 +412,7 @@ export default function App() {
             isPro={isPro}
             onOpenProModal={handleOpenProModal}
             onReverseEngineerCompleted={handleReverseEngineerCompleted}
+            currentLanguage={currentLanguage}
           />
         )}
 
@@ -335,6 +430,7 @@ export default function App() {
             chefTip={chefTip}
             suggestedCuisines={suggestedCuisines}
             isSearchingRecipes={isSearchingRecipes}
+            currentLanguage={currentLanguage}
           />
         )}
 
@@ -376,6 +472,8 @@ export default function App() {
             onRecipeCompleted={() => {
               // auto-favorite or celebrate
             }}
+            currentLanguage={currentLanguage}
+            onLanguageChange={handleLanguageChange}
           />
         )}
       </main>
@@ -415,12 +513,14 @@ export default function App() {
         userIngredients={ingredients.filter((i) => i.checked).map((i) => i.name)}
       />
 
-      {/* Chef Pro / Premium Modal */}
+      {/* Chef Pro / Premium Modal with Invitation Code */}
       <ChefProModal
         isOpen={isProModalOpen}
         onClose={() => setIsProModalOpen(false)}
         isPro={isPro}
         onTogglePro={handleTogglePro}
+        onActivateWithCode={handleActivateWithCode}
+        proCode={proCode}
         targetFeature={proModalFeature}
       />
 
@@ -433,6 +533,7 @@ export default function App() {
         favoritesCount={favorites.length}
         hasActiveCookingSession={!!activeCookingRecipe && currentTab !== 'cooking'}
         onResumeCooking={() => setCurrentTab('cooking')}
+        currentLanguage={currentLanguage}
       />
     </div>
   );

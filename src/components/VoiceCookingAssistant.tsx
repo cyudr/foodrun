@@ -17,21 +17,34 @@ import {
   Award,
   ListOrdered,
   Plus,
+  Globe,
+  ChevronDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Recipe, RecipeStep, ActiveTimer } from '../types';
 import { speechController } from '../utils/speech';
+import {
+  SupportedLanguage,
+  SUPPORTED_LANGUAGES,
+  getLanguageMeta,
+  VOICE_PROMPTS,
+  t,
+} from '../utils/i18n';
 
 interface VoiceCookingAssistantProps {
   recipe: Recipe;
   onExit: () => void;
   onRecipeCompleted?: () => void;
+  currentLanguage?: SupportedLanguage;
+  onLanguageChange?: (lang: SupportedLanguage) => void;
 }
 
 export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
   recipe,
   onExit,
   onRecipeCompleted,
+  currentLanguage = 'en',
+  onLanguageChange,
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -41,15 +54,40 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
   const [lastHeardCommand, setLastHeardCommand] = useState<string>('');
   const [isVoiceSupported, setIsVoiceSupported] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
 
   // Kitchen Timer state
   const [activeTimers, setActiveTimers] = useState<ActiveTimer[]>([]);
+
+  const langMeta = getLanguageMeta(currentLanguage);
+  const prompts = VOICE_PROMPTS[currentLanguage] || VOICE_PROMPTS.en;
 
   const currentStep: RecipeStep =
     recipe.steps[currentStepIndex] || {
       stepNumber: 1,
       instruction: 'Prepare your workspace and ingredients.',
     };
+
+  // Keep speechController in sync with active language
+  useEffect(() => {
+    speechController.setLanguage(currentLanguage);
+  }, [currentLanguage]);
+
+  // Close language popup on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
+    };
+    if (isLangMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isLangMenuOpen]);
 
   // Beep sound generator using Web Audio API
   const playBeep = () => {
@@ -70,12 +108,14 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
     }
   };
 
-  // Speak current step text
+  // Speak current step text using language specific voice and phrasing
   const speakCurrentStep = (stepText?: string) => {
-    const textToSpeak = stepText || `Step ${currentStep.stepNumber}. ${currentStep.instruction}`;
+    const textToSpeak =
+      stepText || prompts.stepInstruction(currentStep.stepNumber, currentStep.instruction);
     setIsSpeaking(true);
     speechController.speak(textToSpeak, {
       rate: speechRate,
+      lang: currentLanguage,
       onStart: () => setIsSpeaking(true),
       onEnd: () => setIsSpeaking(false),
       onError: () => setIsSpeaking(false),
@@ -90,6 +130,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
 
   // Initialize Voice recognition on mount
   useEffect(() => {
+    speechController.setLanguage(currentLanguage);
     const supported = speechController.isVoiceSupported();
     setIsVoiceSupported(supported);
 
@@ -127,7 +168,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
     if (autoReadSteps) {
       const targetStep = recipe.steps[index];
       setTimeout(() => {
-        speakCurrentStep(`Step ${targetStep.stepNumber}. ${targetStep.instruction}`);
+        speakCurrentStep(prompts.stepInstruction(targetStep.stepNumber, targetStep.instruction));
       }, 200);
     }
   };
@@ -150,13 +191,13 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
       stopSpeaking();
     } else if (cmd === 'timer') {
       // Extract minute number from speech
-      const match = transcript.match(/(\d+)\s*(?:mins?|minutes?)/i);
+      const match = transcript.match(/(\d+)\s*(?:mins?|minutes?|분|分|minit)/i);
       const minutes = match ? parseInt(match[1], 10) : 5;
       addTimer(minutes * 60, `${minutes} min timer`);
-      speechController.speak(`Starting timer for ${minutes} minutes.`);
+      speechController.speak(prompts.timerFinished(`${minutes} min`), { lang: currentLanguage });
     } else if (cmd === 'ingredients') {
       const ingList = recipe.ingredients.slice(0, 5).map((i) => i.name).join(', ');
-      speechController.speak(`This recipe uses ${ingList}, and more.`);
+      speechController.speak(ingList, { lang: currentLanguage });
     }
   };
 
@@ -169,7 +210,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
           const next = t.remainingSeconds - 1;
           if (next === 0) {
             playBeep();
-            speechController.speak(`Timer for ${t.label} is done!`);
+            speechController.speak(prompts.timerFinished(t.label), { lang: currentLanguage });
           }
           return {
             ...t,
@@ -181,7 +222,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [currentLanguage]);
 
   // Add kitchen timer
   const addTimer = (seconds: number, label: string) => {
@@ -214,7 +255,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
       spread: 70,
       origin: { y: 0.6 },
     });
-    speechController.speak(`Congratulations! Your ${recipe.title} is ready. Bon appétit!`);
+    speechController.speak(prompts.recipeComplete, { lang: currentLanguage });
     onRecipeCompleted?.();
   };
 
@@ -234,23 +275,72 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
             onExit();
           }}
           type="button"
-          className="flex items-center gap-1.5 text-stone-400 hover:text-white text-xs font-semibold px-2 py-1.5 rounded-xl hover:bg-stone-800 transition-colors"
+          className="flex items-center gap-1.5 text-stone-400 hover:text-white text-xs font-semibold px-2 py-1.5 rounded-xl hover:bg-stone-800 transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
-          Exit Guide
+          <span>Exit</span>
         </button>
 
-        <div className="text-center px-2 min-w-0 max-w-[50%]">
+        <div className="text-center px-2 min-w-0 max-w-[45%]">
           <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider truncate">
             {recipe.title}
           </p>
           <p className="text-xs font-extrabold text-stone-200">
-            Step {currentStepIndex + 1} of {recipe.steps.length}
+            {t('step', currentLanguage)} {currentStepIndex + 1} / {recipe.steps.length}
           </p>
         </div>
 
-        {/* Voice Recognition Toggle */}
+        {/* Right Header Controls: Language Selector, Mic & Speaker */}
         <div className="flex items-center gap-1.5">
+          {/* In-Cooking Language Toggle */}
+          <div className="relative" ref={langMenuRef}>
+            <button
+              onClick={() => setIsLangMenuOpen((prev) => !prev)}
+              type="button"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-all cursor-pointer"
+              title="Change Voice & Recipe Language"
+            >
+              <span>{langMeta.flag}</span>
+              <span className="text-[10px] uppercase font-bold">{langMeta.code}</span>
+              <ChevronDown className="w-3 h-3 text-stone-400" />
+            </button>
+
+            {isLangMenuOpen && (
+              <div className="absolute right-0 mt-1.5 w-44 bg-stone-900 rounded-2xl shadow-2xl border border-stone-700 py-1.5 z-50">
+                <div className="px-3 py-1 border-b border-stone-800 text-[10px] font-bold uppercase text-stone-400 flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-amber-400" />
+                  <span>{t('languageSelector', currentLanguage)}</span>
+                </div>
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const isSelected = lang.code === currentLanguage;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        onLanguageChange?.(lang.code);
+                        speechController.setLanguage(lang.code);
+                        setIsLangMenuOpen(false);
+                      }}
+                      type="button"
+                      className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-500/20 text-amber-400 font-bold'
+                          : 'text-stone-300 hover:bg-stone-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{lang.flag}</span>
+                        <span>{lang.nativeName}</span>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Voice Recognition Toggle */}
           {isVoiceSupported ? (
             <button
               onClick={() => {
@@ -261,7 +351,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
                 }
               }}
               type="button"
-              className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+              className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                 isListening
                   ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/30 animate-pulse'
                   : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
@@ -282,7 +372,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
               }
             }}
             type="button"
-            className={`p-2 rounded-xl text-xs font-bold transition-all ${
+            className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isSpeaking
                 ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
                 : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
@@ -299,51 +389,54 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
         <div
           className="bg-gradient-to-r from-amber-500 to-orange-500 h-full transition-all duration-300"
           style={{
-            width: `${((currentStepIndex + 1) / recipe.steps.length) * 100}%`,
+            width: `${((currentStepIndex + 1) / (recipe.steps.length || 1)) * 100}%`,
           }}
         />
       </div>
 
-      {/* Main Instruction Display */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-center items-center max-w-lg mx-auto w-full text-center">
+      {/* Center Body: Step Content or Completion */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col items-center justify-center text-center max-w-md mx-auto w-full">
         {!isCompleted ? (
-          <div className="space-y-5 w-full">
-            {/* Step Number Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-900 border border-stone-800 text-xs font-bold text-amber-400">
-              <Flame className="w-3.5 h-3.5 text-amber-500" />
-              Step {currentStepIndex + 1}
+          <div className="space-y-5">
+            {/* Step Number Tag */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{prompts.stepPrefix(currentStep.stepNumber)}</span>
             </div>
 
-            {/* Instruction Big Text (Optimized for viewing from counter distance) */}
-            <p className="text-xl sm:text-2xl font-bold text-stone-100 leading-relaxed px-2">
+            {/* Step Instruction */}
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white leading-relaxed tracking-tight px-1 font-sans">
               {currentStep.instruction}
-            </p>
+            </h2>
 
             {/* Chef Tip if available */}
             {currentStep.tip && (
-              <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs text-left max-w-md mx-auto flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <p>
-                  <strong className="font-bold text-amber-300">Tip:</strong> {currentStep.tip}
-                </p>
+              <div className="p-3.5 rounded-2xl bg-stone-900 border border-stone-800 text-xs text-stone-300 flex items-start gap-2.5 text-left max-w-sm mx-auto shadow-sm">
+                <Flame className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-400 block mb-0.5">
+                    {t('chefNotes', currentLanguage)}:
+                  </span>
+                  <span>{currentStep.tip}</span>
+                </div>
               </div>
             )}
 
-            {/* Quick Timer trigger if minutes are detected in this step */}
-            {currentStep.estimatedMinutes && (
+            {/* Inline Timer Button if step specifies estimatedMinutes */}
+            {currentStep.estimatedMinutes && currentStep.estimatedMinutes > 0 && (
               <div className="pt-2">
                 <button
                   onClick={() =>
                     addTimer(
                       currentStep.estimatedMinutes! * 60,
-                      `Step ${currentStep.stepNumber} Timer`
+                      `${prompts.stepPrefix(currentStep.stepNumber)}: ${currentStep.estimatedMinutes} min`
                     )
                   }
                   type="button"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-amber-400 font-bold text-xs border border-amber-500/30 shadow-md transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-amber-400 font-bold text-xs border border-amber-500/30 shadow-md transition-all cursor-pointer"
                 >
                   <Clock className="w-4 h-4 text-amber-400" />
-                  ⏰ Start {currentStep.estimatedMinutes} min Cooking Timer
+                  <span>⏰ {t('kitchenTimer', currentLanguage)} ({currentStep.estimatedMinutes} min)</span>
                 </button>
               </div>
             )}
@@ -353,8 +446,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
               <div className="text-[11px] text-stone-400 flex items-center justify-center gap-1.5 pt-1">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                 <span>
-                  {lastHeardCommand ||
-                    'Listening... Say "Next", "Back", "Repeat", or "Timer 5 min"'}
+                  {lastHeardCommand || t('voiceListening', currentLanguage)}
                 </span>
               </div>
             )}
@@ -366,18 +458,18 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
               <Award className="w-10 h-10" />
             </div>
             <h2 className="text-2xl font-extrabold text-white">
-              Dish Complete!
+              {t('finishCooking', currentLanguage)}!
             </h2>
             <p className="text-stone-300 text-sm max-w-xs mx-auto leading-relaxed">
-              You've successfully finished cooking <span className="text-amber-400 font-bold">{recipe.title}</span>!
+              <span className="text-amber-400 font-bold">{recipe.title}</span>
             </p>
             <div className="pt-4 flex flex-col gap-2.5 w-full max-w-xs mx-auto">
               <button
                 onClick={onExit}
                 type="button"
-                className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-sm shadow-lg transition-all"
+                className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-sm shadow-lg transition-all cursor-pointer"
               >
-                Back to Recipes
+                {t('recipes', currentLanguage)}
               </button>
             </div>
           </div>
@@ -409,14 +501,14 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
                   <button
                     onClick={() => toggleTimerRunning(timer.id)}
                     type="button"
-                    className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300"
+                    className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 cursor-pointer"
                   >
                     {timer.isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
                   <button
                     onClick={() => removeTimer(timer.id)}
                     type="button"
-                    className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-red-400"
+                    className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-red-400 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -435,17 +527,17 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
             onClick={() => goToStep(currentStepIndex - 1)}
             disabled={currentStepIndex === 0}
             type="button"
-            className="flex-1 py-4 px-3 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-stone-200 font-extrabold text-sm flex items-center justify-center gap-1.5 transition-all disabled:opacity-40"
+            className="flex-1 py-4 px-3 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-stone-200 font-extrabold text-sm flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
-            Back
+            <span>{t('previousStep', currentLanguage)}</span>
           </button>
 
           {/* Voice Read/Repeat Button */}
           <button
             onClick={() => speakCurrentStep()}
             type="button"
-            className={`py-4 px-5 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
+            className={`py-4 px-5 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
               isSpeaking
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
                 : 'bg-stone-800 hover:bg-stone-700 text-amber-400 border border-stone-700'
@@ -453,7 +545,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
             title="Read instruction again"
           >
             <Volume2 className="w-5 h-5" />
-            Repeat
+            <span>{t('readAgain', currentLanguage)}</span>
           </button>
 
           {/* Next / Finish Button */}
@@ -461,18 +553,18 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
             <button
               onClick={() => goToStep(currentStepIndex + 1)}
               type="button"
-              className="flex-1 py-4 px-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 transition-all"
+              className="flex-1 py-4 px-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
             >
-              Next
+              <span>{t('nextStep', currentLanguage)}</span>
               <ChevronRight className="w-5 h-5" />
             </button>
           ) : (
             <button
               onClick={handleFinishRecipe}
               type="button"
-              className="flex-1 py-4 px-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-stone-950 font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 transition-all"
+              className="flex-1 py-4 px-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-stone-950 font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              Finish!
+              <span>{t('finishCooking', currentLanguage)}!</span>
               <Check className="w-5 h-5 stroke-[3]" />
             </button>
           )}
@@ -481,11 +573,11 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
         {/* Bottom Quick Controls & Speed */}
         <div className="max-w-lg mx-auto flex items-center justify-between text-stone-400 text-xs pt-3 px-1">
           <div className="flex items-center gap-2">
-            <span>Voice Speed:</span>
+            <span>Speed:</span>
             <button
               onClick={() => setSpeechRate((r) => (r === 1.0 ? 0.8 : r === 0.8 ? 1.2 : 1.0))}
               type="button"
-              className="px-2 py-0.5 rounded-md bg-stone-800 text-stone-300 font-bold hover:bg-stone-700"
+              className="px-2 py-0.5 rounded-md bg-stone-800 text-stone-300 font-bold hover:bg-stone-700 cursor-pointer"
             >
               {speechRate}x
             </button>
@@ -498,7 +590,7 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
               onChange={(e) => setAutoReadSteps(e.target.checked)}
               className="rounded bg-stone-800 border-stone-700 text-amber-500 focus:ring-0"
             />
-            <span>Auto-speak steps</span>
+            <span>Auto-speak</span>
           </label>
         </div>
       </div>

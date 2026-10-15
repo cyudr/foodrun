@@ -1,6 +1,22 @@
-import React from 'react';
-import { Camera, UtensilsCrossed, Heart, ChefHat, Layers, Crown, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Camera,
+  UtensilsCrossed,
+  Heart,
+  ChefHat,
+  Layers,
+  Crown,
+  Globe,
+  Check,
+  ChevronDown,
+} from 'lucide-react';
 import { AppTab } from '../types';
+import {
+  SupportedLanguage,
+  SUPPORTED_LANGUAGES,
+  getLanguageMeta,
+  t,
+} from '../utils/i18n';
 
 interface NavigationProps {
   currentTab: AppTab;
@@ -10,6 +26,7 @@ interface NavigationProps {
   favoritesCount: number;
   hasActiveCookingSession: boolean;
   onResumeCooking: () => void;
+  currentLanguage?: SupportedLanguage;
 }
 
 export const TopBar: React.FC<{
@@ -18,9 +35,38 @@ export const TopBar: React.FC<{
   onGoToScanner: () => void;
   isPro?: boolean;
   onOpenProModal?: () => void;
-}> = ({ currentTab, pantryCount, onGoToScanner, isPro = false, onOpenProModal }) => {
+  currentLanguage: SupportedLanguage;
+  onLanguageChange: (lang: SupportedLanguage) => void;
+}> = ({
+  currentTab,
+  pantryCount,
+  onGoToScanner,
+  isPro = false,
+  onOpenProModal,
+  currentLanguage,
+  onLanguageChange,
+}) => {
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+  const currentMeta = getLanguageMeta(currentLanguage);
+
+  // Close language dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
+    };
+    if (isLangMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isLangMenuOpen]);
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-3">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-2.5">
       <div className="max-w-lg mx-auto flex items-center justify-between">
         <div
           onClick={onGoToScanner}
@@ -34,18 +80,79 @@ export const TopBar: React.FC<{
               SnapChef
             </span>
             <span className="text-[10px] text-amber-700 font-semibold tracking-wider uppercase block">
-              AI Vision &amp; Voice Cook
+              {t('appSubtitle', currentLanguage)}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Language Toggle Dropdown */}
+          <div className="relative" ref={langMenuRef}>
+            <button
+              onClick={() => setIsLangMenuOpen((prev) => !prev)}
+              type="button"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition-all cursor-pointer shadow-2xs"
+              title={t('languageSelector', currentLanguage)}
+            >
+              <span className="text-sm leading-none">{currentMeta.flag}</span>
+              <span className="hidden xs:inline text-[11px] font-bold text-stone-800">
+                {currentMeta.nativeName}
+              </span>
+              <span className="xs:hidden text-[11px] font-bold text-stone-800 uppercase">
+                {currentMeta.code}
+              </span>
+              <ChevronDown className="w-3 h-3 text-stone-500 stroke-[2.5]" />
+            </button>
+
+            {isLangMenuOpen && (
+              <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-stone-200/80 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-3 py-1.5 border-b border-stone-100 text-[10px] font-bold uppercase tracking-wider text-stone-600 flex items-center gap-1.5">
+                  <Globe className="w-3 h-3 text-amber-600" />
+                  <span>{t('languageSelector', currentLanguage)}</span>
+                </div>
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const isSelected = lang.code === currentLanguage;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        onLanguageChange(lang.code);
+                        setIsLangMenuOpen(false);
+                      }}
+                      type="button"
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-50 font-bold text-amber-900'
+                          : 'text-stone-700 hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none">{lang.flag}</span>
+                        <div>
+                          <div className="text-stone-900 leading-tight font-medium">
+                            {lang.nativeName}
+                          </div>
+                          <div className="text-[10px] text-stone-600 leading-tight">
+                            {lang.name}
+                          </div>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-amber-600 stroke-[3]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Chef Pro / Premium Badge or Button */}
           {onOpenProModal && (
             <button
               onClick={onOpenProModal}
               type="button"
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 isPro
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black shadow-amber-500/25 ring-2 ring-amber-400/40'
                   : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
@@ -53,12 +160,12 @@ export const TopBar: React.FC<{
               title="Chef Pro Premium Features"
             >
               <Crown className={`w-3.5 h-3.5 ${isPro ? 'text-stone-950' : 'text-amber-600'}`} />
-              <span>{isPro ? 'Chef Pro' : 'Try Pro'}</span>
+              <span className="text-[11px]">{isPro ? t('chefPro', currentLanguage) : t('tryPro', currentLanguage)}</span>
             </button>
           )}
 
           {pantryCount > 0 && currentTab !== 'pantry' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               {pantryCount}
             </span>
@@ -77,6 +184,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
   favoritesCount,
   hasActiveCookingSession,
   onResumeCooking,
+  currentLanguage = 'en',
 }) => {
   // If in active fullscreen cooking mode, the assistant has its own footer
   if (currentTab === 'cooking') return null;
@@ -102,7 +210,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[10px]">Pantry</span>
+          <span className="text-[10px]">{t('pantry', currentLanguage)}</span>
         </button>
 
         {/* 2. Recipes */}
@@ -123,7 +231,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[10px]">Recipes</span>
+          <span className="text-[10px]">{t('recipes', currentLanguage)}</span>
         </button>
 
         {/* 3. HERO CENTER CAMERA BUTTON: Auto-opens camera */}
@@ -136,7 +244,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
                 ? 'bg-gradient-to-tr from-amber-500 to-orange-500 ring-4 ring-amber-400/30 scale-105'
                 : 'bg-gradient-to-tr from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
             }`}
-            title="Open Camera"
+            title={t('scanIngredients', currentLanguage)}
           >
             <Camera className="w-6 h-6 stroke-[2.2]" />
           </button>
@@ -164,7 +272,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[10px]">Favorites</span>
+          <span className="text-[10px]">{t('favorites', currentLanguage)}</span>
         </button>
 
         {/* 5. Active Cooking Session */}
@@ -175,7 +283,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
             className="flex flex-col items-center py-1 px-3 rounded-2xl text-amber-600 font-extrabold animate-pulse cursor-pointer"
           >
             <ChefHat className="w-5 h-5 mb-0.5 text-amber-600" />
-            <span className="text-[10px]">Cooking</span>
+            <span className="text-[10px]">{t('cooking', currentLanguage)}</span>
           </button>
         )}
       </div>

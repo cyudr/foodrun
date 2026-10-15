@@ -1,8 +1,19 @@
-// Speech Synthesis & Recognition Manager
+/**
+ * SnapChef Multilingual Speech Synthesis & Hands-Free Recognition Manager
+ * Dynamically adapts TTS voice accents and SpeechRecognition language
+ * across English, Chinese, Malay, Korean, Tamil, and Japanese.
+ */
+
+import {
+  SupportedLanguage,
+  getLanguageMeta,
+  VOICE_COMMANDS,
+} from './i18n';
 
 interface SpeechOptions {
   rate?: number;
   pitch?: number;
+  lang?: SupportedLanguage;
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (err: any) => void;
@@ -13,6 +24,9 @@ class SpeechController {
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private recognition: any = null;
   private isListening: boolean = false;
+  private currentLanguage: SupportedLanguage = 'en';
+  private onCommandCallback: ((command: string, rawText: string) => void) | null = null;
+  private onStatusChangeCallback: ((listening: boolean) => void) | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -20,28 +34,75 @@ class SpeechController {
     }
   }
 
-  // Speak text using Web Speech API
+  public setLanguage(lang: SupportedLanguage): void {
+    this.currentLanguage = lang;
+    const meta = getLanguageMeta(lang);
+
+    // If recognition is active, update recognition language
+    if (this.recognition) {
+      const wasListening = this.isListening;
+      try {
+        if (wasListening) {
+          this.recognition.stop();
+        }
+        this.recognition.lang = meta.recognitionLang;
+        if (wasListening) {
+          setTimeout(() => {
+            try {
+              this.recognition.start();
+            } catch {
+              // Ignore restart error
+            }
+          }, 300);
+        }
+      } catch (err) {
+        console.warn('Error updating recognition language:', err);
+      }
+    }
+  }
+
+  public getLanguage(): SupportedLanguage {
+    return this.currentLanguage;
+  }
+
+  // Speak text using Web Speech API with language-specific voice and pronunciation
   public speak(text: string, options: SpeechOptions = {}): boolean {
     if (!this.synth) return false;
 
     // Cancel any ongoing speech
     this.stop();
 
+    const targetLang = options.lang || this.currentLanguage;
+    const meta = getLanguageMeta(targetLang);
+
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = meta.bcp47;
     utterance.rate = options.rate ?? 1.0;
     utterance.pitch = options.pitch ?? 1.0;
 
-    // Pick a natural, expressive voice if available
+    // Pick the most natural voice matching the target language
     const voices = this.synth.getVoices();
-    const preferredVoice = voices.find(
-      (v) =>
-        v.lang.startsWith('en') &&
-        (v.name.includes('Natural') ||
-          v.name.includes('Google') ||
-          v.name.includes('Samantha') ||
-          v.name.includes('Karen') ||
-          v.name.includes('Daniel'))
-    ) || voices.find((v) => v.lang.startsWith('en'));
+    const langPrefix = meta.bcp47.split('-')[0].toLowerCase();
+
+    // Prefer high quality / natural voices in target language
+    const preferredVoice =
+      voices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith(langPrefix) &&
+          (v.name.includes('Natural') ||
+            v.name.includes('Google') ||
+            v.name.includes('Premium') ||
+            v.name.includes('Neural') ||
+            v.name.includes('Siri') ||
+            v.name.includes('Karen') ||
+            v.name.includes('Tingting') ||
+            v.name.includes('Yuna') ||
+            v.name.includes('Kyoko') ||
+            v.name.includes('Kanya'))
+      ) ||
+      voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix)) ||
+      (targetLang === 'ms' ? voices.find((v) => v.lang.toLowerCase().startsWith('id')) : null) || // Indonesian voice closely matches Malay
+      voices.find((v) => v.lang.toLowerCase().startsWith('en'));
 
     if (preferredVoice) {
       utterance.voice = preferredVoice;
@@ -56,7 +117,6 @@ class SpeechController {
     };
 
     utterance.onerror = (e) => {
-      // Ignore user-cancelled interruptions
       if (e.error !== 'canceled' && e.error !== 'interrupted') {
         console.warn('Speech error:', e);
         options.onError?.(e);
@@ -79,7 +139,7 @@ class SpeechController {
     return !!this.synth && this.synth.speaking;
   }
 
-  // Voice Command Recognition for hands-free cooking
+  // Multilingual Voice Command Recognition for hands-free cooking
   public initVoiceRecognition(
     onCommand: (command: string, rawText: string) => void,
     onStatusChange?: (listening: boolean) => void
@@ -94,20 +154,25 @@ class SpeechController {
       return false;
     }
 
+    this.onCommandCallback = onCommand;
+    this.onStatusChangeCallback = onStatusChange || null;
+
     try {
       this.recognition = new SpeechRecognitionClass();
       this.recognition.continuous = true;
       this.recognition.interimResults = false;
-      this.recognition.lang = 'en-US';
+
+      const meta = getLanguageMeta(this.currentLanguage);
+      this.recognition.lang = meta.recognitionLang;
 
       this.recognition.onstart = () => {
         this.isListening = true;
-        onStatusChange?.(true);
+        this.onStatusChangeCallback?.(true);
       };
 
       this.recognition.onend = () => {
         this.isListening = false;
-        onStatusChange?.(false);
+        this.onStatusChangeCallback?.(false);
       };
 
       this.recognition.onerror = (event: any) => {
@@ -119,34 +184,12 @@ class SpeechController {
       this.recognition.onresult = (event: any) => {
         const last = event.results.length - 1;
         const transcript = event.results[last][0].transcript.toLowerCase().trim();
-        console.log('Spoken transcript:', transcript);
+        console.log(`[Voice Recognition - ${this.currentLanguage}] Spoken transcript:`, transcript);
 
-        // Command parsing
-        if (
-          transcript.includes('next') ||
-          transcript.includes('continue') ||
-          transcript.includes('forward')
-        ) {
-          onCommand('next', transcript);
-        } else if (
-          transcript.includes('back') ||
-          transcript.includes('previous') ||
-          transcript.includes('last step')
-        ) {
-          onCommand('back', transcript);
-        } else if (
-          transcript.includes('repeat') ||
-          transcript.includes('again') ||
-          transcript.includes('say that') ||
-          transcript.includes('read again')
-        ) {
-          onCommand('repeat', transcript);
-        } else if (transcript.includes('timer') || transcript.includes('minute')) {
-          onCommand('timer', transcript);
-        } else if (transcript.includes('ingredient')) {
-          onCommand('ingredients', transcript);
-        } else if (transcript.includes('stop') || transcript.includes('pause')) {
-          onCommand('stop', transcript);
+        // Multilingual Command Matching
+        const cmd = this.matchCommand(transcript);
+        if (cmd) {
+          this.onCommandCallback?.(cmd, transcript);
         }
       };
 
@@ -157,9 +200,52 @@ class SpeechController {
     }
   }
 
+  // Matches spoken transcript across the active language commands and English keywords
+  private matchCommand(transcript: string): string | null {
+    const activeCommands = VOICE_COMMANDS[this.currentLanguage] || VOICE_COMMANDS.en;
+    const enCommands = VOICE_COMMANDS.en;
+
+    const checkList = (keywords: string[]) =>
+      keywords.some((kw) => transcript.includes(kw.toLowerCase()));
+
+    // 1. Next / Forward
+    if (checkList(activeCommands.next) || checkList(enCommands.next)) {
+      return 'next';
+    }
+
+    // 2. Previous / Back
+    if (checkList(activeCommands.back) || checkList(enCommands.back)) {
+      return 'back';
+    }
+
+    // 3. Repeat / Read again
+    if (checkList(activeCommands.repeat) || checkList(enCommands.repeat)) {
+      return 'repeat';
+    }
+
+    // 4. Timer
+    if (checkList(activeCommands.timer) || checkList(enCommands.timer)) {
+      return 'timer';
+    }
+
+    // 5. Ingredients list
+    if (checkList(activeCommands.ingredients) || checkList(enCommands.ingredients)) {
+      return 'ingredients';
+    }
+
+    // 6. Stop / Pause
+    if (checkList(activeCommands.stop) || checkList(enCommands.stop)) {
+      return 'stop';
+    }
+
+    return null;
+  }
+
   public startListening(): boolean {
     if (this.recognition && !this.isListening) {
       try {
+        const meta = getLanguageMeta(this.currentLanguage);
+        this.recognition.lang = meta.recognitionLang;
         this.recognition.start();
         return true;
       } catch (err) {

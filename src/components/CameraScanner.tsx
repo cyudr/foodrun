@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
 import { processImageFile } from '../utils/imageProcessor';
+import { SupportedLanguage, t } from '../utils/i18n';
 
 interface CameraScannerProps {
   onIngredientsDetected: (data: {
@@ -33,6 +34,7 @@ interface CameraScannerProps {
   isPro?: boolean;
   onOpenProModal?: (feature?: string) => void;
   onReverseEngineerCompleted?: (recipe: any) => void;
+  currentLanguage?: SupportedLanguage;
 }
 
 interface CameraDeviceInfo {
@@ -51,6 +53,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   isPro = false,
   onOpenProModal,
   onReverseEngineerCompleted,
+  currentLanguage = 'en',
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -459,7 +462,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Reverse Engineer Food Recipe Based on Photo (Premium Feature)
   const reverseEngineerImage = async (base64Image: string) => {
     setIsAnalyzing(true);
-    setStatusMessage('Chef Pro AI is deconstructing secret sauces, seasonings & master recipe...');
+    setStatusMessage(t('analyzingPhoto', currentLanguage));
 
     try {
       const payload = {
@@ -467,6 +470,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         imageBase64: base64Image,
         mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
         userIngredients: userIngredients || [],
+        language: currentLanguage,
       };
 
       const response = await fetch('/api/gemini.ts', {
@@ -498,13 +502,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Send photo to Gemini serverless endpoint via /api/gemini.ts
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
-    setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
+    setStatusMessage(t('analyzingPhoto', currentLanguage));
 
     try {
       const payload = {
         action: 'identify',
         imageBase64: base64Image,
         mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        language: currentLanguage,
       };
 
       const response = await fetch('/api/gemini.ts', {
@@ -618,7 +623,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             }`}
           >
             <Camera className="w-3.5 h-3.5 text-amber-600" />
-            <span>Scan Ingredients</span>
+            <span>{t('scanIngredients', currentLanguage)}</span>
           </button>
 
           <button
@@ -637,7 +642,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             }`}
           >
             <Crown className="w-3.5 h-3.5 text-amber-700" />
-            <span>Reverse Recipe</span>
+            <span>{t('reverseRecipe', currentLanguage)}</span>
             <span className="text-[9px] bg-black/70 text-amber-300 px-1.5 py-0.2 rounded-full font-black uppercase">
               Pro
             </span>
@@ -651,26 +656,26 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           <>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
               <Crown className="w-3.5 h-3.5 text-amber-600" />
-              Chef Pro AI Recipe Reverse Engineering
+              {t('chefPro', currentLanguage)}
             </span>
             <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
-              Reverse-Engineer Food Dish
+              {t('reverseTitle', currentLanguage)}
             </h1>
             <p className="text-stone-600 text-xs mt-1">
-              Snap or upload any plated dish to deconstruct secret sauces, seasonings &amp; full recipe!
+              {t('reverseSubtitle', currentLanguage)}
             </p>
           </>
         ) : (
           <>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              Deliciously spiced with Gemini
+              {t('tagline', currentLanguage)}
             </span>
             <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
-              Snap Your Ingredients
+              {t('identifyingTitle', currentLanguage)}
             </h1>
             <p className="text-stone-600 text-xs mt-1">
-              Connected to Main Wide Camera (1x). Pinch with 2 fingers to zoom in &amp; out.
+              {t('identifyingSubtitle', currentLanguage)}
             </p>
           </>
         )}
@@ -893,7 +898,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     className="px-5 py-2.5 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-extrabold text-sm shadow-xl shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 cursor-pointer"
                   >
                     <Camera className="w-4 h-4 stroke-[2.2]" />
-                    <span>Initialise Camera</span>
+                    <span>{t('initialiseCamera', currentLanguage)}</span>
                   </button>
                   <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
                     {activeMode === 'reverse-engineer'
@@ -964,7 +969,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
-              Initialise Camera
+              {t('initialiseCamera', currentLanguage)}
             </button>
 
             <button
@@ -974,7 +979,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
             >
               <ImageIcon className="w-4 h-4 text-amber-400" />
-              Choose Photo
+              {t('choosePhoto', currentLanguage)}
             </button>
 
             <input

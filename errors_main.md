@@ -16,9 +16,10 @@ This document catalogs all technical issues, runtime bugs, and errors encountere
 | **ERR-06** | Camera starting automatically on tab view | Scanner lifecycle | `autoStart={true}` prop triggered `getUserMedia` unconditionally on mount | Removed autoStart effect; camera now strictly initializes only upon clicking "Initialise Camera" |
 | **ERR-07** | `git push origin main` rejected (Authentication Required) | Git CLI | Headless build container had no stored GitHub credentials or Personal Access Token | Executed authenticated push via HTTPS URL token: `https://<TOKEN>@github.com/cyudr/foodrun.git` |
 | **ERR-08** | Git URL parsing error (`https://<token>@https://github...`) | Git CLI | User provided URL containing duplicate `https://` protocol prefix | Sanitized remote URL to `https://<token>@github.com/cyudr/foodrun.git` and successfully pushed |
-| **ERR-09** | "Choose Photo" opens camera app instead of photo library | `CameraScanner.tsx` file input | `capture="environment"` attribute instructed mobile browsers (iOS/Android) to bypass photo picker and open camera hardware directly | Removed `capture="environment"` from file input, allowing system photo gallery selection |
 | **ERR-10** | Choose photo allows select photo but photo cannot be loaded for detection | `imageProcessor.ts` / `CameraScanner.tsx` | HEIC format from iPhones, memory overload on raw files, missing timeout/error handling | Implemented `processImageFile` with dynamic HEIC conversion via `heic2any`, canvas downsampling to 1280px, and timeout guards |
 | **ERR-11** | Dish photos static / need reverse-engineering recipe from photo | `dishPhotos.ts` / `api/gemini.ts` | Dish photos were hardcoded fallback loops; food dish photos lacked dedicated deconstruction | Built `resolveDishPhoto`, `adjustDishPhotoPresentation`, `ReverseEngineerModal`, `ChefProModal`, and `handleReverseEngineerRecipe` endpoint |
+| **ERR-12** | Multilingual Voice Synthesis & Recognition Accent/Prompt Mismatch | `speech.ts` / `i18n.ts` / `api/gemini.ts` | Web Speech API hardcoded to English and Gemini generated English-only recipes and ingredients regardless of user preference | Built full i18n engine with native BCP-47 voice tags, multi-lingual keyword recognition, and strict Gemini prompt localization for EN, ZH, MS, KO, TA, and JA |
+| **ERR-13** | Chef Pro Free Demo Pass Ungated / Need Environment-Based Invitation Code | `ChefProModal.tsx` / `api/gemini.ts` / `.env` | Chef Pro tier was previously open via 1-click toggle with no invitation verification | Implemented secure serverless endpoint `/api/gemini.ts?action=verify-invite-code` verifying against any environment variables starting with `vibe_*` |
 
 ---
 
@@ -274,5 +275,40 @@ The API previously only supported basic raw ingredient listing and cycled throug
 1. Enhanced `api/gemini.ts` with `handleReverseEngineerRecipe` and `handleAdjustDishPhoto`.
 2. Created `src/utils/dishPhotos.ts` providing an intelligent culinary photo registry matching recipes to styles like Rustic Bistro, Michelin Star Minimalist, and Cozy Homestyle.
 3. Implemented `ChefProModal.tsx`, `ReverseEngineerModal.tsx`, and `AdjustDishPhotoModal.tsx` for full premium feature experience.
+
+---
+
+### ERR-12: Multilingual Speech Synthesis & Recognition Accent/Prompt Mismatch
+
+#### Symptom:
+When switching language to Chinese, Malay, Korean, Tamil, or Japanese, the voice assistant continued to read in an English accent or failed to pronounce localized text properly, speech recognition failed to understand non-English commands, and recipe generation returned English text.
+
+#### Root Cause:
+1. `speech.ts` had hardcoded `utterance.lang = 'en-US'` and only selected English voice profiles.
+2. `SpeechRecognition` was hardcoded to `en-US` and the command parser only checked English strings (`next`, `back`, `repeat`, `timer`, `stop`).
+3. `api/gemini.ts` prompts lacked explicit language directives, causing Gemini to default to English outputs.
+
+#### Resolution:
+1. Built `src/utils/i18n.ts` defining language metadata, BCP-47 tags (`zh-CN`, `ms-MY`, `ko-KR`, `ta-IN`, `ja-JP`, `en-US`), and localized voice prompts.
+2. Updated `SpeechController.speak()` to dynamically filter voices by language prefix and assign natural pronunciation models.
+3. Enhanced speech recognition with multilingual voice command dictionaries recognizing hands-free commands in all 6 languages.
+4. Added `getLanguageInstruction()` in `api/gemini.ts` ensuring recipes, ingredients, and reverse-engineered dishes are generated natively in the chosen language.
+
+---
+
+### ERR-13: Chef Pro Free Demo Pass Ungated / Need Environment-Based Invitation Code
+
+#### Symptom:
+Chef Pro features could be activated by anyone via a single click on "Activate Chef Pro Pass", bypassing invitation gating. The feature needed to require an invitation code matching environment variables with names starting with `vibe_`.
+
+#### Root Cause:
+The Pro status was managed purely via a client-side boolean toggle in `ChefProModal.tsx` and lacked a server-side verification barrier against environment secrets.
+
+#### Resolution:
+1. Implemented `handleVerifyInviteCode()` in `api/gemini.ts` (`action: "verify-invite-code"`).
+2. Scans `process.env` dynamically for all environment keys starting with `vibe_` or `VIBE_` and case-insensitively compares the input against variable values, keys, and suffix names.
+3. Added sample invitation codes to `.env.example` and `.env` (`VIBE_CHEF="CHEF2026"`, `VIBE_VIP="VIPCHEF"`, `VIBE_EARLY_ACCESS="VIBECOOK"`).
+4. Redesigned `ChefProModal.tsx` with an Invitation Code input field, real-time verification feedback, error handling, and verified pass badge.
+
 
 

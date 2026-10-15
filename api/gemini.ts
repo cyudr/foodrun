@@ -307,11 +307,56 @@ export function handleKeyStatus(_req: any, res: any) {
   }
 }
 
+// Multilingual Prompt Localization Helper
+function getLanguageInstruction(languageCode?: string): { code: string; name: string; promptNote: string } {
+  const code = (languageCode || 'en').toLowerCase().trim();
+  switch (code) {
+    case 'zh':
+      return {
+        code: 'zh',
+        name: 'Simplified Chinese (简体中文)',
+        promptNote: 'CRITICAL LANGUAGE REQUIREMENT: Output ALL ingredient names, state/freshness, culinary categories, dish names, tips, descriptions, and instructions completely in Simplified Chinese (简体中文). E.g. "番茄", "大蒜", "鸡胸肉", "生抽".',
+      };
+    case 'ms':
+      return {
+        code: 'ms',
+        name: 'Malay (Bahasa Melayu)',
+        promptNote: 'CRITICAL LANGUAGE REQUIREMENT: Output ALL ingredient names, state/freshness, culinary categories, dish names, tips, descriptions, and instructions completely in Malay (Bahasa Melayu). E.g. "Tomato", "Bawang Putih", "Dada Ayam", "Kicap".',
+      };
+    case 'ko':
+      return {
+        code: 'ko',
+        name: 'Korean (한국어)',
+        promptNote: 'CRITICAL LANGUAGE REQUIREMENT: Output ALL ingredient names, state/freshness, culinary categories, dish names, tips, descriptions, and instructions completely in Korean (한국어). E.g. "토마토", "마늘", "닭가슴살", "간장".',
+      };
+    case 'ta':
+      return {
+        code: 'ta',
+        name: 'Tamil (தமிழ்)',
+        promptNote: 'CRITICAL LANGUAGE REQUIREMENT: Output ALL ingredient names, state/freshness, culinary categories, dish names, tips, descriptions, and instructions completely in Tamil (தமிழ்). E.g. "தக்காளி", "பூண்டு", "கோழி இறைச்சி", "சோயா சாஸ்".',
+      };
+    case 'ja':
+      return {
+        code: 'ja',
+        name: 'Japanese (日本語)',
+        promptNote: 'CRITICAL LANGUAGE REQUIREMENT: Output ALL ingredient names, state/freshness, culinary categories, dish names, tips, descriptions, and instructions completely in Japanese (日本語). E.g. "トマト", "ニンニク", "鶏むね肉", "醤油".',
+      };
+    default:
+      return {
+        code: 'en',
+        name: 'English',
+        promptNote: 'Output all ingredient names and instructions in English.',
+      };
+  }
+}
+
 // 2. Photo Analysis: Identify Ingredients
 export async function handleIdentify(req: any, res: any) {
   try {
     const body = req.body || {};
     const rawImage = body.imageBase64 || body.image;
+    const requestedLanguage = body.language || 'en';
+    const langConfig = getLanguageInstruction(requestedLanguage);
 
     if (!rawImage || typeof rawImage !== 'string') {
       return sendJson(res, 400, { error: 'Image data is required (imageBase64)' });
@@ -330,7 +375,7 @@ export async function handleIdentify(req: any, res: any) {
       cleanBase64 = rawImage.replace(/^data:[^;]+;base64,/, '');
     }
 
-    console.log(`[Gemini Vision] Analyzing image: ~${Math.round(cleanBase64.length / 1024)} KB, MIME: ${cleanMime}`);
+    console.log(`[Gemini Vision - Lang: ${langConfig.code}] Analyzing image: ~${Math.round(cleanBase64.length / 1024)} KB, MIME: ${cleanMime}`);
 
     const response = await generateWithFallback(ai, {
       contents: {
@@ -344,17 +389,20 @@ export async function handleIdentify(req: any, res: any) {
           {
             text: `Analyze this image carefully. Whether this photo depicts raw groceries, produce, pantry ingredients OR a finished/cooked food dish, identify ALL recognizable food ingredients, raw vegetables, fruits, meats, seafood, dairy, eggs, pantry staples, herbs, spices, condiments, sauces, and garnishes.
 
+Language Requirement:
+${langConfig.promptNote}
+
 For every distinct ingredient identified:
-1. Provide the singular culinary English name (e.g., "Tomato", "Chicken Breast", "Garlic", "Onion", "Egg", "Bell Pepper", "Soy Sauce", "Milk", "Potato", "Parmesan").
-2. Assign an appropriate culinary category: "Produce", "Meat & Seafood", "Dairy & Eggs", "Pantry & Seasonings", "Bakery & Grains", or "Other".
+1. Provide the singular culinary name in ${langConfig.name}.
+2. Assign an appropriate culinary category translated to ${langConfig.name} (e.g. Produce, Meat & Seafood, Dairy & Eggs, Pantry & Seasonings, Bakery & Grains, Other).
 3. Provide confidence ("high", "medium", or "low").
-4. Note its state/freshness if apparent (e.g. "Fresh", "Ripe", "Raw", "Chopped", "Canned", "Chilled", "Cooked").
+4. Note its state/freshness if apparent in ${langConfig.name} (e.g. Fresh, Ripe, Raw, Chopped, Canned, Chilled, Cooked).
 5. Note estimated visible quantity if discernable (e.g. "3 items", "1 bunch", "approx. 250g", "1 carton").
 
 Additionally:
-- Set isPreparedDish to true if this image appears to be a finished cooked meal or plated restaurant dish (e.g. Pasta Carbonara, Pad Thai, Burger, Steak, Salad bowl), and provide dishName and dishCuisine.
+- Set isPreparedDish to true if this image appears to be a finished cooked meal or plated restaurant dish (e.g. Pasta Carbonara, Pad Thai, Burger, Steak, Salad bowl), and provide dishName and dishCuisine translated to ${langConfig.name}.
 - Otherwise set isPreparedDish to false.
-- Provide 2 to 4 cuisine inspiration tags and a short pro chef tip for cooking with these ingredients.
+- Provide 2 to 4 cuisine inspiration tags and a short pro chef tip in ${langConfig.name} for cooking with these ingredients.
 Return valid JSON according to the schema.`,
           },
         ],
@@ -439,7 +487,8 @@ Return valid JSON according to the schema.`,
 export async function handleFindRecipes(req: any, res: any) {
   try {
     const body = req.body || {};
-    const { ingredients = [], preferences = '' } = body;
+    const { ingredients = [], preferences = '', language = 'en' } = body;
+    const langConfig = getLanguageInstruction(language);
 
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
       return sendJson(res, 400, { error: 'At least one ingredient is required' });
@@ -450,6 +499,10 @@ export async function handleFindRecipes(req: any, res: any) {
     const prompt = `You are a world-class culinary chef. Generate 5 diverse, mouth-watering, realistic recipes that feature and make maximum use of these user-provided ingredients:
 ${ingredients.join(', ')}.
 
+Language Requirement:
+${langConfig.promptNote}
+CRITICAL: All recipe titles, descriptions, categories, areas/origins, difficulty, dishAppearance, chefNotes, ingredient names, ingredient measurements, and every cooking step instruction and tip MUST BE WRITTEN IN ${langConfig.name}. This is essential for the Voice Cooking Assistant to read the cooking steps aloud fluently in ${langConfig.name}.
+
 Preferences: ${preferences || 'Balanced variety: 1 quick 15-min meal, 1 comforting classic, 1 fresh healthy dish, 1 creative gourmet option'}.
 
 Instructions:
@@ -458,10 +511,10 @@ Instructions:
    - "hasIngredient": true if the user provided it (or very similar), false if it's an extra item.
    - "isStaple": true if it's a basic kitchen staple (salt, oil, pepper, water, flour).
 3. Compute an honest matchPercentage (0 to 100) based on how much of the dish can be made with user's items.
-4. Break each recipe into clear, numbered cooking steps. Each step should be concise and spoken-friendly for a voice cooking assistant.
-5. Provide realistic prep and cook times in minutes, difficulty ("Easy", "Medium", "Hard"), and servings.
+4. Break each recipe into clear, numbered cooking steps in ${langConfig.name}. Each step should be concise and spoken-friendly for a voice cooking assistant.
+5. Provide realistic prep and cook times in minutes, difficulty ("Easy", "Medium", "Hard" translated if appropriate), and servings.
 6. Provide an accurate dishVisualType for each dish matching its appearance: "salmon", "shrimp", "fish", "chicken", "chicken-curry", "steak", "beef", "pork", "pasta", "pasta-tomato", "pasta-creamy", "noodles", "fried-rice", "rice", "tofu", "stir-fry", "salad", "soup", "curry", "eggs", "pancakes", "toast", "pizza", "tacos", or "burger".
-7. Provide dishAppearance: A vivid 1-sentence description of the plated dish highlighting the user's pantry ingredients.
+7. Provide dishAppearance: A vivid 1-sentence description in ${langConfig.name} of the plated dish highlighting the user's pantry ingredients.
 8. Provide platingStyle: Default plating presentation (e.g. "Rustic Skillet", "Modern Plate", "Cozy Bowl", or "Family Platter").
 
 Return pure JSON matching the schema.`;
@@ -601,7 +654,8 @@ Return pure JSON matching the schema.`;
 export async function handleCustomRecipe(req: any, res: any) {
   try {
     const body = req.body || {};
-    const { ingredients = [], mealType = 'Any', dietaryPreference = 'None' } = body;
+    const { ingredients = [], mealType = 'Any', dietaryPreference = 'None', language = 'en' } = body;
+    const langConfig = getLanguageInstruction(language);
 
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
       return sendJson(res, 400, { error: 'Ingredients list is required' });
@@ -614,15 +668,19 @@ ${ingredients.join(', ')}.
 Meal type preference: ${mealType}.
 Dietary preference: ${dietaryPreference}.
 
+Language Requirement:
+${langConfig.promptNote}
+CRITICAL: All recipe content (title, description, category, area, difficulty, dishAppearance, chefNotes, ingredient names, ingredient measurements, and every cooking step instruction and tip) MUST BE WRITTEN IN ${langConfig.name}. This is required so the Voice Cooking Assistant can read the cooking instructions aloud in ${langConfig.name}.
+
 Requirements:
-1. Create a clear recipe name that sounds appetizing.
+1. Create a clear recipe name in ${langConfig.name} that sounds appetizing.
 2. Utilize as many of the user's available ingredients as possible.
 3. Provide realistic prep time, cook time, difficulty, and servings.
-4. Break down the cooking process into concise, well-sequenced, spoken-friendly cooking steps.
+4. Break down the cooking process into concise, well-sequenced, spoken-friendly cooking steps in ${langConfig.name}.
 5. Add timer recommendation for steps requiring cooking/simmering/baking.
 6. Provide dishVisualType: ("salmon", "shrimp", "fish", "chicken", "chicken-curry", "steak", "beef", "pork", "pasta", "pasta-tomato", "pasta-creamy", "noodles", "fried-rice", "rice", "tofu", "stir-fry", "salad", "soup", "curry", "eggs", "pancakes", "toast", "pizza", "tacos", or "burger").
-7. Provide dishAppearance: Detailed 1-sentence plating description.
-8. Provide chef advice/pro-tips.
+7. Provide dishAppearance: Detailed 1-sentence plating description in ${langConfig.name}.
+8. Provide chef advice/pro-tips in ${langConfig.name}.
 
 Return purely JSON matching the schema.`;
 
@@ -740,6 +798,8 @@ export async function handleReverseEngineerRecipe(req: any, res: any) {
     const body = req.body || {};
     const rawImage = body.imageBase64 || body.image;
     const userIngredients: string[] = Array.isArray(body.userIngredients) ? body.userIngredients : [];
+    const language = body.language || 'en';
+    const langConfig = getLanguageInstruction(language);
 
     if (!rawImage || typeof rawImage !== 'string') {
       return sendJson(res, 400, { error: 'Image data is required for reverse engineering recipe' });
@@ -758,7 +818,7 @@ export async function handleReverseEngineerRecipe(req: any, res: any) {
       cleanBase64 = rawImage.replace(/^data:[^;]+;base64,/, '');
     }
 
-    console.log(`[Gemini Pro] Reverse engineering dish recipe from photo: ~${Math.round(cleanBase64.length / 1024)} KB`);
+    console.log(`[Gemini Pro - Lang: ${langConfig.code}] Reverse engineering dish recipe from photo: ~${Math.round(cleanBase64.length / 1024)} KB`);
 
     const userPantryContext =
       userIngredients.length > 0
@@ -767,24 +827,28 @@ export async function handleReverseEngineerRecipe(req: any, res: any) {
 
     const prompt = `You are an elite Michelin-starred culinary investigator and food scientist specializing in deep reverse engineering of restaurant dishes from food photography.
 
+Language Requirement:
+${langConfig.promptNote}
+CRITICAL: Output the entire deconstruction result (dishName, cuisine, description, difficulty, detectedTechniques, secretChefTip, component names and descriptions, all ingredient names and measures, and all cooking step instructions and tips) COMPLETELY IN ${langConfig.name}. This allows the Voice Cooking Assistant to read the recipe steps fluently in ${langConfig.name}.
+
 Carefully examine this photograph of a finished food dish:
-1. Identify the exact dish name, origin region, and culinary heritage.
+1. Identify the exact dish name, origin region, and culinary heritage in ${langConfig.name}.
 2. Deconstruct the dish into components:
-   - Visible base ingredients (proteins, carbs, produce, garnishes).
-   - Hidden culinary elements: sauces, emulsified dressings, marinades, aromatics, and secret spice blends that give this dish its signature taste.
-   - Core culinary techniques used (e.g. pan-sear with crispy skin, deglaze reduction, sous-vide, charring, flash-fry).
+   - Visible base ingredients (proteins, carbs, produce, garnishes) in ${langConfig.name}.
+   - Hidden culinary elements: sauces, emulsified dressings, marinades, aromatics, and secret spice blends that give this dish its signature taste in ${langConfig.name}.
+   - Core culinary techniques used in ${langConfig.name} (e.g. pan-sear with crispy skin, deglaze reduction, sous-vide, charring, flash-fry).
 3. Evaluate the flavor balance on 0-100: savory, umami, acidity, sweetness, richness/fat.
-4. Formulate the definitive, step-by-step master recipe so the user can recreate this restaurant-quality dish at home:
-   - Clear title and enticing description.
+4. Formulate the definitive, step-by-step master recipe in ${langConfig.name} so the user can recreate this restaurant-quality dish at home:
+   - Clear title and enticing description in ${langConfig.name}.
    - Prep time, cook time, difficulty ('Easy', 'Medium', 'Hard'), servings.
-   - Comprehensive ingredients list with precise culinary measurements.
+   - Comprehensive ingredients list with precise culinary measurements in ${langConfig.name}.
    - Cross-reference with the user's pantry (${userPantryContext}):
      * Set hasIngredient = true if user already has it in their pantry.
      * Set isStaple = true if it's a basic kitchen staple (salt, black pepper, cooking oil, water, flour).
-   - Clear, numbered cooking steps optimized for a Voice Cooking Assistant.
-   - Secret Chef Tip: The insider trick that restaurants use to make this dish taste extraordinary.
+   - Clear, numbered cooking steps in ${langConfig.name} optimized for a Voice Cooking Assistant.
+   - Secret Chef Tip in ${langConfig.name}: The insider trick that restaurants use to make this dish taste extraordinary.
 5. Provide dishVisualType: matching the primary dish category ("salmon", "shrimp", "fish", "chicken", "chicken-curry", "steak", "beef", "pork", "pasta", "pasta-tomato", "pasta-creamy", "noodles", "fried-rice", "rice", "tofu", "stir-fry", "salad", "soup", "curry", "eggs", "pancakes", "toast", "pizza", "tacos", or "burger").
-6. Provide dishAppearance: A 1-sentence description of the plating presentation.
+6. Provide dishAppearance: A 1-sentence description in ${langConfig.name} of the plating presentation.
 
 Return purely JSON adhering strictly to the schema.`;
 
@@ -1016,6 +1080,76 @@ export async function handleTts(req: any, res: any) {
   }
 }
 
+// 8. Verify Invitation Code for Chef Pro (matching environment variables starting with "vibe_")
+export function handleVerifyInviteCode(req: any, res: any) {
+  try {
+    const body = req.body || {};
+    const inputCode = (body.code || body.inviteCode || '').toString().trim();
+
+    if (!inputCode) {
+      return sendJson(res, 400, {
+        valid: false,
+        error: 'Please enter an invitation code.',
+      });
+    }
+
+    const cleanInput = inputCode.toLowerCase();
+
+    // Scan process.env for all keys starting with "vibe_" (case-insensitive)
+    const vibeEnvKeys = Object.keys(process.env).filter((key) =>
+      key.toLowerCase().startsWith('vibe_')
+    );
+
+    let isMatch = false;
+    let matchedEnvName = '';
+
+    for (const key of vibeEnvKeys) {
+      const val = (process.env[key] || '').trim();
+      const cleanVal = val.toLowerCase();
+      const cleanKey = key.toLowerCase();
+      const cleanSuffix = cleanKey.replace(/^vibe_/i, '').trim();
+
+      // Check if code matches the env var value, the key name, or the key suffix
+      if (
+        (cleanVal && cleanVal === cleanInput) ||
+        cleanKey === cleanInput ||
+        (cleanSuffix && cleanSuffix === cleanInput)
+      ) {
+        isMatch = true;
+        matchedEnvName = key;
+        break;
+      }
+    }
+
+    // Default backup codes if no vibe_* env vars are currently set in the environment
+    if (!isMatch && vibeEnvKeys.length === 0) {
+      const defaultCodes = ['chef2026', 'vibepro', 'vipchef', 'vibecook'];
+      if (defaultCodes.includes(cleanInput)) {
+        isMatch = true;
+        matchedEnvName = 'VIBE_CHEF';
+      }
+    }
+
+    if (isMatch) {
+      return sendJson(res, 200, {
+        valid: true,
+        matched: matchedEnvName,
+        message: 'Invitation code verified! Welcome to Chef Pro.',
+      });
+    } else {
+      return sendJson(res, 403, {
+        valid: false,
+        error: 'Invalid invitation code. Codes must match an active vibe_* pass.',
+      });
+    }
+  } catch (err: any) {
+    return sendJson(res, 500, {
+      valid: false,
+      error: err?.message || 'Failed to verify invitation code',
+    });
+  }
+}
+
 // Universal Serverless Function Handler for /api/gemini.ts
 // Compatible with Vercel Serverless, Vite Dev Middleware, Netlify, and Express
 export default async function handler(req: any, res: any) {
@@ -1041,6 +1175,9 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET' || url.includes('status') || action === 'status' || action === 'check-key') {
     return handleKeyStatus(req, res);
   }
+  if (url.includes('verify-invite-code') || url.includes('verify-code') || action === 'verify-invite-code' || action === 'verify-code') {
+    return handleVerifyInviteCode(req, res);
+  }
   if (url.includes('reverse-engineer') || action === 'reverse-engineer' || action === 'reverse-engineer-recipe') {
     return handleReverseEngineerRecipe(req, res);
   }
@@ -1061,6 +1198,6 @@ export default async function handler(req: any, res: any) {
   }
 
   return sendJson(res, 400, {
-    error: 'Missing or unrecognized action. Expected: identify, find-recipes, generate-recipe, reverse-engineer, adjust-dish-photo, or tts',
+    error: 'Missing or unrecognized action. Expected: verify-invite-code, identify, find-recipes, generate-recipe, reverse-engineer, adjust-dish-photo, or tts',
   });
 }

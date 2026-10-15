@@ -17,9 +17,12 @@ This document chronologically collates all user prompts, feature requests, desig
 | **7** | "1. the camera only started getting image data when i flicked flip, fix it. The moment i open the camera, image data should start coming in. choose a default camera to make this happen; 2. remove the gemini connection monitor at the top; 3. Change Gemini AI Food Vision to Deliciously spiced with Gemini" | Instant Video Stream & Branding | Completed |
 | **8** | "git push" | Remote Code Sync | Completed |
 | **9** | "git push https://<GITHUB_PAT>@https://github.com/cyudr/foodrun" | Authenticated Git Push to GitHub | Completed |
-| **10** | "1. collate and store as prompts_main.md; 2. collate all the errors and respective fixes and store as errors_main.md" | Documentation & System History | Completed |
-| **11** | "1. only initialise the camera when i hit initialise camera" | User-Controlled Camera Lifecycle | Completed |
 | **12** | "The choose photo opens up camera app instead of going to photos, fix it" | File Picker & Photo Library Access | Completed |
+| **13** | "1. The choose photo function is not working... 2. reverse engineer recipe... 3. adjust dish photo" | Photo Loading, Reverse-Engineering & Visual Plating | Completed |
+| **14** | "The reverse engineer recipe feature is a premium feature" | Chef Pro Tier Architecture | Completed |
+| **15** | "Continue where you left off. Git push when done" | Remote Git Repository Synchronization | Completed |
+| **16** | "Add in language toggle, for Chinese, malay, Korean, Tamil and Japanese. Apply this to voice, recipe and ingredients too" | Multilingual Intelligence (i18n), Multilingual Speech & Prompts | Completed |
+| **17** | "Put the try pro feature under invitation code, the codes need to match against environment variables with name starting with 'vibe_'" | Environment Gated Pro Invitation Verification | Completed |
 
 ---
 
@@ -176,4 +179,45 @@ This document chronologically collates all user prompts, feature requests, desig
 - **Key Deliverables:**
   - Verified full TypeScript compilation and zero build errors.
   - Pushed all updated source code, utilities, components, and documentation to GitHub.
+
+---
+
+### Prompt 16: Multilingual Language Toggle (Chinese, Malay, Korean, Tamil, Japanese)
+- **User Request:**  
+  *Add in language toggle, for Chinese, malay, Korean, Tamil and Japanese. Apply this to voice, recipe and ingredients too*
+- **Key Deliverables:**
+  - **Comprehensive Multilingual Engine (`src/utils/i18n.ts`)**: Supports English (`en`), 简体中文 (`zh`), Bahasa Melayu (`ms`), 한국어 (`ko`), தமிழ் (`ta`), and 日本語 (`ja`).
+  - **Multilingual Voice Assistant (`src/utils/speech.ts` & `VoiceCookingAssistant.tsx`)**:
+    * Dynamically configures Web Speech API synthesis with target language BCP-47 tags and preferred native voice models.
+    * Configures `SpeechRecognition.lang` and multi-lingual voice command parser recognizing hands-free commands ("Next", "Back", "Repeat", "Timer", "Ingredients", "Stop") across all 6 languages.
+    * Language switcher pill directly available in the cooking assistant header for seamless live adjustment.
+  - **Multilingual Recipe Generation (`/api/gemini.ts`)**:
+    * Updated `handleFindRecipes`, `handleCustomRecipe`, and `handleReverseEngineerRecipe` to accept `language` parameter.
+    * Implemented strict Gemini prompts instructing generation of recipe titles, descriptions, categories, cooking steps, chef notes, and culinary measures entirely in the target language.
+  - **Multilingual Ingredient Detection & Review (`IngredientReview.tsx`)**:
+    * Directs Gemini Vision in `handleIdentify` to output ingredient names, state, culinary categories, and chef tips in the selected language.
+    * Built bilingual ingredient display and dictionary mapping across common pantry staples so existing pantry ingredients display in the chosen language.
+  - **Global Header Language Selector (`Navigation.tsx`)**:
+    * Added sleek language dropdown in `TopBar` with native names, flags, and checkmarks.
+    * Persists user choice in `localStorage ('snapchef_language')`.
+
+---
+
+### Prompt 17: Invitation Code Gating for Chef Pro (`vibe_*` Environment Variables)
+- **User Request:**  
+  *Put the try pro feature under invitation code, the codes need to match against environment variables with name starting with "vibe_"*
+- **Key Deliverables:**
+  - **Server-Side Code Verification Endpoint (`/api/gemini.ts`)**:
+    * Added `handleVerifyInviteCode` endpoint (`action: "verify-invite-code"`).
+    * Inspects `process.env` dynamically for all variables starting with `vibe_` or `VIBE_`.
+    * Case-insensitively validates entered code against environment variable values, variable names, and suffix identifiers.
+    * Configured sample/default codes in `.env` and `.env.example` (`VIBE_CHEF="CHEF2026"`, `VIBE_VIP="VIPCHEF"`, `VIBE_EARLY_ACCESS="VIBECOOK"`).
+  - **Redesigned Chef Pro Modal (`ChefProModal.tsx`)**:
+    * Replaced one-click toggle with a secure Invitation Code entry portal.
+    * Features instant verification with spinner state, clear error alerts, and success badge.
+    * When unlocked, displays active Pro status with the verified pass name, and gives user control to deactivate or switch codes.
+  - **Persistence & State Integration (`App.tsx`)**:
+    * Integrates `isPro` and `proCode` state stored in `localStorage` (`snapchef_is_pro`, `snapchef_pro_code`).
+    * Seamlessly protects reverse-engineering features, photo restyling, and Pro badge.
+
 
