@@ -85,9 +85,11 @@ export const TopBar: React.FC<{
             <span className="font-extrabold text-stone-900 text-base tracking-tight block leading-tight font-serif">
               SnapChef
             </span>
-            <span className="text-[10px] text-amber-700 font-semibold tracking-wider uppercase block">
-              {t('appSubtitle', currentLanguage)}
-            </span>
+            {t('appSubtitle', currentLanguage) ? (
+              <span className="text-[10px] text-amber-700 font-semibold tracking-wider uppercase block">
+                {t('appSubtitle', currentLanguage)}
+              </span>
+            ) : null}
           </div>
         </div>
 

@@ -17,7 +17,7 @@ export default async function handler(_req: any, res: any) {
     status: 'healthy',
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    engine: 'Gemini AI',
+    engine: 'SnapChef Engine',
     environment: {
       geminiKeyConfigured: hasGeminiKey,
       nodeEnv: process.env.NODE_ENV || 'development',

@@ -447,7 +447,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setIsAnalyzing(true);
     setStatusMessage(
       activeMode === 'reverse-engineer'
-        ? 'Chef Pro AI is reading and preparing dish photograph...'
+        ? 'Reading and preparing dish photograph...'
         : 'Optimizing and loading selected photo...'
     );
 
@@ -512,7 +512,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   };
 
-  // Send photo to Gemini serverless endpoint via /api/gemini.ts
+  // Send photo to serverless endpoint via /api/gemini.ts
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
     setStatusMessage(t('analyzingPhoto', currentLanguage));
@@ -533,12 +533,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server returned ${response.status}: Failed to analyze image with Gemini`);
+        throw new Error(errorData.error || `Server returned ${response.status}: Failed to analyze image`);
       }
 
       const data = await response.json();
 
-      // If Gemini detected that this is a cooked meal/plated dish, offer reverse engineering!
+      // If plated dish detected, offer reverse engineering!
       if (data.isPreparedDish && data.dishName) {
         setDetectedPreparedDish({
           dishName: data.dishName,
@@ -552,7 +552,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       const items = data.ingredients || [];
       if (items.length === 0) {
         alert(
-          'Gemini could not clearly identify individual food items in this photo. Try taking a clearer photo closer to the ingredients, or tap one of the Quick Test Samples below!'
+          'Could not clearly identify individual food items in this photo. Try taking a clearer photo closer to the ingredients, or tap one of the Quick Test Samples below!'
         );
       }
 
@@ -869,7 +869,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
                   <p className="text-white font-bold text-sm mt-4">
-                    {activeMode === 'reverse-engineer' ? 'Chef AI Unlocking Master Recipe...' : 'Gemini AI Vision Analyzing...'}
+                    {activeMode === 'reverse-engineer' ? 'Unlocking Master Recipe...' : 'Analyzing Ingredients...'}
                   </p>
                   <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
                     {statusMessage}
@@ -924,7 +924,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 <div className="text-[10px] text-stone-300/80 font-medium">
                   {activeMode === 'reverse-engineer'
                     ? 'Chef Pro • Recipe & Secret Sauce Recreation'
-                    : 'Main Wide Camera (1x) • AI Ingredient Detection'}
+                    : 'Main Wide Camera (1x) • Ingredient Detection'}
                 </div>
               </div>
             </div>
@@ -1056,7 +1056,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   {pantryCount} Ingredient{pantryCount > 1 ? 's' : ''} Collected
                 </p>
                 <p className="text-emerald-700 text-[11px]">
-                  Snap more items or view pantry to get Gemini recipes.
+                  Snap more items or view pantry to get recipes.
                 </p>
               </div>
             </div>
@@ -1116,7 +1116,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       {/* Privacy and Camera Tip */}
       <div className="px-6 mt-6 flex items-center justify-center gap-2 text-stone-600 text-[11px] text-center">
         <ShieldCheck className="w-3.5 h-3.5 text-stone-600" />
-        <span>Main wide camera connected. Images are processed directly by Gemini AI.</span>
+        <span>Main wide camera connected. Images are processed securely for ingredients.</span>
       </div>
     </div>
   );

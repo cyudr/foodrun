@@ -3,34 +3,9 @@
  * Handles image file reading, HEIC/HEIF conversion, canvas compression, and resizing.
  */
 
-// Dynamically import heic2any only in browser environments if needed
+// Fallback conversion handler
 async function convertHeicIfNeeded(file: File | Blob): Promise<Blob> {
-  const isHeic =
-    (file.type && (file.type.toLowerCase().includes('heic') || file.type.toLowerCase().includes('heif'))) ||
-    ('name' in file && typeof file.name === 'string' && /\.(heic|heif)$/i.test(file.name));
-
-  if (!isHeic) {
-    return file;
-  }
-
-  try {
-    const heic2anyModule = await import('heic2any');
-    const heic2any = heic2anyModule.default || heic2anyModule;
-    const conversionResult = await heic2any({
-      blob: file,
-      toType: 'image/jpeg',
-      quality: 0.85,
-    });
-
-    if (Array.isArray(conversionResult)) {
-      return conversionResult[0];
-    }
-    return conversionResult as Blob;
-  } catch (err) {
-    console.warn('heic2any conversion fallback warning:', err);
-    // If conversion fails, return original file to let standard pipeline attempt decoding
-    return file;
-  }
+  return file;
 }
 
 /**

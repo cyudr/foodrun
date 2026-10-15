@@ -273,7 +273,7 @@ export const IngredientReview: React.FC<IngredientReviewProps> = ({
         </p>
       </div>
 
-      {/* Primary Action Buttons: Find with Gemini AI */}
+      {/* Primary Action Buttons */}
       <div className="mt-5 space-y-2.5">
         <button
           onClick={onFindGeminiRecipes}

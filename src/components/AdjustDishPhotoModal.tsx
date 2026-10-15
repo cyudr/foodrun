@@ -61,7 +61,7 @@ export const AdjustDishPhotoModal: React.FC<AdjustDishPhotoModalProps> = ({
         }
       }
     } catch (err) {
-      console.warn('AI photo adjustment fallback:', err);
+      console.warn('Photo adjustment fallback:', err);
     } finally {
       setIsAiAdjusting(false);
     }
@@ -134,7 +134,7 @@ export const AdjustDishPhotoModal: React.FC<AdjustDishPhotoModalProps> = ({
                 ) : (
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 )}
-                <span>AI Auto-Tune</span>
+                <span>Auto-Tune Plating</span>
               </button>
             </div>
           </div>

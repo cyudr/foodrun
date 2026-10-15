@@ -90,7 +90,7 @@ export const UsageStatusModal: React.FC<UsageStatusModalProps> = ({
             </div>
             <p className="text-[11px] text-stone-400 mt-0.5">
               {isPro
-                ? 'VIP Unlimited AI Vision, Recipes & Cooking Modes'
+                ? 'VIP Unlimited Dish Scans, Recipes & Cooking Modes'
                 : isDepleted
                 ? 'All free cooking generations used'
                 : `${usageState.count} free generation${usageState.count > 1 ? 's' : ''} available`}

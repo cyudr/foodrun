@@ -40,7 +40,7 @@ export interface FlavorProfile {
 export interface Recipe {
   id: string;
   title: string;
-  source: 'Gemini AI' | 'AI Chef';
+  source: string;
   description?: string;
   category: string;
   area: string;
@@ -63,6 +63,7 @@ export interface Recipe {
   servings?: number;
   chefNotes?: string;
   isFavorite?: boolean;
+  isCustom?: boolean;
   isReverseEngineered?: boolean;
   detectedTechniques?: string[];
   cookingWares?: string[];

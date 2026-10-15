@@ -73,7 +73,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
           ) : (
             <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 text-stone-900 backdrop-blur-md shadow-xs flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-500" />
-              Gemini AI Chef
+              Chef Recipe
             </span>
           )}
         </div>

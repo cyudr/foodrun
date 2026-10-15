@@ -267,7 +267,7 @@ export default function App() {
     alert(`Added ${missingNames.length} missing ingredients to your pantry list!`);
   };
 
-  // Handle ingredients detected by Gemini from photo
+  // Handle ingredients detected from photo
   const handleIngredientsDetected = (data: {
     ingredients: any[];
     suggestedCuisines?: string[];
@@ -325,7 +325,7 @@ export default function App() {
     }
   };
 
-  // Generate recipes via Gemini AI with active language
+  // Generate recipes with active language
   const handleFindGeminiRecipes = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) return;
@@ -347,7 +347,7 @@ export default function App() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate recipes with Gemini AI');
+        throw new Error(errorData.error || 'Failed to generate recipes');
       }
 
       const data = await response.json();
@@ -361,7 +361,7 @@ export default function App() {
     }
   };
 
-  // Generate Bespoke Custom Recipe with Gemini AI Chef with active language
+  // Generate Bespoke Custom Recipe with active language
   const handleGenerateCustomRecipe = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) {

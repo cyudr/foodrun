@@ -133,7 +133,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
                 Recreate Any Dish from Photo
               </h3>
               <p className="text-stone-300 text-xs mt-1 leading-relaxed">
-                Snap or upload any restaurant dish or home cooked meal. Gemini unlocks the chef's secret seasonings, master sauces, pantry matches, and builds a restaurant-quality recipe so you can cook it yourself!
+                Snap or upload any restaurant dish or home cooked meal. Decode the chef's secret seasonings, master sauces, pantry matches, and build a restaurant-quality recipe so you can cook it yourself!
               </p>
             </div>
           )}
@@ -225,7 +225,7 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
               </div>
               <div>
                 <p className="text-xs font-bold text-stone-200">
-                  AI Dish &amp; Recipe Recreation
+                  Master Dish &amp; Recipe Recreation
                 </p>
                 <p className="text-[11px] text-stone-400">
                   Recreate master recipes, secret sauces &amp; seasonings from any food photo.

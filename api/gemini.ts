@@ -467,7 +467,7 @@ export function handleKeyStatus(_req: any, res: any) {
       status: 'ready',
       keySource,
       maskedKey: masked,
-      message: 'Gemini AI connection is active and ready.',
+      message: 'Chef studio connection is active and ready.',
     });
   } catch (err: any) {
     return sendJson(res, 500, {
@@ -648,8 +648,8 @@ Return valid JSON according to the schema.`,
     const isOverload = error?.message?.includes('503') || error?.status === 503;
     return sendJson(res, isOverload ? 503 : 500, {
       error: isOverload
-        ? 'Gemini AI is temporarily experiencing high traffic. Please tap snap photo again in a few seconds.'
-        : error?.message || 'Failed to analyze image with Gemini',
+        ? 'The server is temporarily experiencing high traffic. Please tap snap photo again in a few seconds.'
+        : error?.message || 'Failed to analyze image',
     });
   }
 }
@@ -790,8 +790,8 @@ Return pure JSON matching the schema.`;
       return {
         id: `gemini-rec-${Date.now()}-${index}`,
         title: recipe.title,
-        source: 'Gemini AI',
-        description: recipe.description || 'Crafted with Gemini AI chef intelligence.',
+        source: 'Chef Recipe',
+        description: recipe.description || 'Crafted with master culinary precision.',
         category: recipe.category || 'Chef Special',
         area: recipe.area || 'Fusion',
         imageUrl: adjustedDishPhoto,
@@ -826,8 +826,8 @@ Return pure JSON matching the schema.`;
     const isOverload = error?.message?.includes('503') || error?.status === 503;
     return sendJson(res, isOverload ? 503 : 500, {
       error: isOverload
-        ? 'Gemini AI is temporarily busy. Please tap search recipes again in a moment.'
-        : error?.message || 'Failed to generate recipes with Gemini',
+        ? 'The culinary engine is temporarily busy. Please tap search recipes again in a moment.'
+        : error?.message || 'Failed to generate recipes',
     });
   }
 }
@@ -949,9 +949,9 @@ Return purely JSON matching the schema.`;
 
     const customRecipe = {
       id: `custom-${Date.now()}`,
-      title: parsed.title || 'Gemini Chef Special Creation',
-      source: 'Gemini AI',
-      description: parsed.description || 'Custom crafted recipe by Gemini AI based on your fresh ingredients.',
+      title: parsed.title || 'Chef Special Creation',
+      source: 'Chef Dish',
+      description: parsed.description || 'Custom crafted recipe by our executive chef based on your fresh ingredients.',
       category: parsed.category || 'Chef Special',
       area: parsed.area || 'Fusion',
       imageUrl: adjustedDishPhoto,
@@ -979,7 +979,7 @@ Return purely JSON matching the schema.`;
     const isOverload = error?.message?.includes('503') || error?.status === 503;
     return sendJson(res, isOverload ? 503 : 500, {
       error: isOverload
-        ? 'Gemini AI is temporarily busy. Please try generating again in a moment.'
+        ? 'The culinary engine is temporarily busy. Please try generating again in a moment.'
         : error?.message || 'Failed to generate custom recipe',
     });
   }
@@ -1165,7 +1165,7 @@ Return purely JSON adhering strictly to the schema.`;
     const masterRecipe = {
       id: `rev-eng-${Date.now()}`,
       title: parsed.dishName || 'Recreated Chef Master Dish',
-      source: 'Gemini AI',
+      source: 'Chef Recipe',
       description: parsed.description || 'Precision culinary recreation formulated from high-fidelity food photography.',
       category: parsed.category || parsed.cuisine || 'Chef Pro Special',
       area: parsed.cuisine || 'Gourmet',
@@ -1208,8 +1208,8 @@ Return purely JSON adhering strictly to the schema.`;
     const isOverload = error?.message?.includes('503') || error?.status === 503;
     return sendJson(res, isOverload ? 503 : 500, {
       error: isOverload
-        ? 'Gemini AI is currently busy. Please tap reverse engineer again in a few seconds.'
-        : error?.message || 'Failed to reverse engineer recipe from photo',
+        ? 'The culinary engine is currently busy. Please tap recreate dish again in a few seconds.'
+        : error?.message || 'Failed to recreate recipe from photo',
     });
   }
 }

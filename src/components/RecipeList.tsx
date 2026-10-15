@@ -34,7 +34,7 @@ export const RecipeList: React.FC<RecipeListProps> = ({
   const favoriteIds = new Set(favorites.map((f) => f.id));
 
   // Extract unique categories
-  const categories = ['All', 'High Match (75%+)', 'Quick (<30m)', 'AI Chef', ...Array.from(new Set(recipes.map((r) => r.category).filter(Boolean)))];
+  const categories = ['All', 'High Match (75%+)', 'Quick (<30m)', 'Custom Chef Dish', ...Array.from(new Set(recipes.map((r) => r.category).filter(Boolean)))];
 
   const filteredRecipes = recipes.filter((recipe) => {
     // Search query match
@@ -52,8 +52,8 @@ export const RecipeList: React.FC<RecipeListProps> = ({
     if (selectedTag === 'Quick (<30m)') {
       return recipe.estimatedTimeMinutes <= 30;
     }
-    if (selectedTag === 'AI Chef') {
-      return recipe.source === 'AI Chef';
+    if (selectedTag === 'Custom Chef Dish') {
+      return recipe.isCustom || (typeof recipe.source === 'string' && recipe.source.toLowerCase().includes('chef'));
     }
     if (selectedTag !== 'All') {
       return recipe.category === selectedTag;
@@ -78,19 +78,19 @@ export const RecipeList: React.FC<RecipeListProps> = ({
         </span>
       </div>
 
-      {/* Hero AI Chef Callout */}
+      {/* Hero Chef Callout */}
       <div className="mt-3 p-4 rounded-3xl bg-gradient-to-br from-stone-900 to-stone-800 text-white shadow-lg border border-stone-800">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
               <Sparkles className="w-3 h-3 text-amber-400" />
-              Bespoke Culinary AI
+              Bespoke Culinary Experience
             </span>
             <h2 className="text-base font-extrabold text-white mt-1.5">
               Want a Tailored Dish?
             </h2>
             <p className="text-stone-300 text-xs mt-1 leading-relaxed">
-              Let Gemini craft a gourmet recipe using the exact items you just photographed.
+              Let our master chef craft a gourmet recipe using the exact items you just photographed.
             </p>
           </div>
         </div>
@@ -104,12 +104,12 @@ export const RecipeList: React.FC<RecipeListProps> = ({
           {isLoadingCustomRecipe ? (
             <>
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              Generating Custom Recipe...
+              Creating Custom Chef Dish...
             </>
           ) : (
             <>
               <ChefHat className="w-4 h-4 text-stone-950" />
-              Generate Custom AI Recipe
+              Create Custom Chef Dish
             </>
           )}
         </button>
@@ -152,14 +152,14 @@ export const RecipeList: React.FC<RecipeListProps> = ({
             <ChefHat className="w-12 h-12 text-stone-300 mx-auto mb-2" />
             <h3 className="font-bold text-stone-800 text-sm">No Recipes Found</h3>
             <p className="text-stone-500 text-xs mt-1 max-w-xs mx-auto">
-              Try taking photos of more ingredients, or generate an AI Chef recipe to fit your current items.
+              Try taking photos of more ingredients, or create a custom chef dish to fit your current items.
             </p>
             <button
               onClick={onGenerateCustomRecipe}
               type="button"
               className="mt-4 px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-600/20"
             >
-              Generate with AI Chef
+              Create Custom Chef Dish
             </button>
           </div>
         ) : (
