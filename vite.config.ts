@@ -41,7 +41,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), serverlessApiPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(process.cwd()),
       },
     },
     server: {

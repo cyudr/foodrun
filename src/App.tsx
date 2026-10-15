@@ -212,7 +212,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 text-stone-900 font-sans flex flex-col antialiased selection:bg-amber-200 selection:text-amber-900">
+    <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] font-sans flex flex-col antialiased selection:bg-[#0071e3]/20 selection:text-[#0071e3]">
       {/* Top Bar (Hidden when actively in voice cooking mode) */}
       {currentTab !== 'cooking' && (
         <TopBar
@@ -222,8 +222,8 @@ export default function App() {
         />
       )}
 
-      {/* Main Content Body */}
-      <main className="flex-1 w-full max-w-lg mx-auto">
+      {/* Main Content Body with Responsive Width */}
+      <main className={`flex-1 w-full mx-auto ${currentTab === 'recipes' ? 'max-w-5xl' : 'max-w-xl'}`}>
         {/* Tab 1: Scanner */}
         {currentTab === 'scanner' && (
           <CameraScanner

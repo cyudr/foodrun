@@ -7,9 +7,9 @@ import {
   ChefHat,
   Youtube,
   CheckCircle2,
-  AlertCircle,
-  Sparkles,
   ExternalLink,
+  Users,
+  Flame,
 } from 'lucide-react';
 import { Recipe } from '../types';
 
@@ -42,22 +42,29 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-fade-in">
-      <div className="bg-stone-50 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto flex flex-col shadow-2xl relative">
-        {/* Top Header Image */}
-        <div className="relative aspect-16/10 w-full bg-stone-900 shrink-0">
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-apple-fade-in"
+    >
+      <div className="bg-[#f5f5f7] w-full max-w-lg rounded-t-[32px] sm:rounded-[28px] max-h-[92vh] overflow-y-auto flex flex-col shadow-2xl relative border border-black/[0.08]">
+        {/* iOS Drag Handle */}
+        <div className="sm:hidden w-10 h-1 bg-black/20 rounded-full mx-auto my-2.5 shrink-0" />
+
+        {/* Top Header Image Deck */}
+        <div className="relative aspect-[16/10] w-full bg-stone-900 shrink-0 overflow-hidden sm:rounded-t-[28px]">
           <img
             src={recipe.imageUrl}
             alt={recipe.title}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-900/90 via-stone-900/30 to-black/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
 
           {/* Close button */}
           <button
             onClick={onClose}
             type="button"
-            className="absolute top-4 left-4 p-2.5 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70 active:scale-95 transition-all"
+            className="absolute top-3.5 left-3.5 w-8 h-8 rounded-full bg-black/40 text-white backdrop-blur-md flex items-center justify-center hover:bg-black/60 active:scale-95 transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -66,73 +73,67 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
           <button
             onClick={() => onToggleFavorite(recipe)}
             type="button"
-            className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-90 ${
+            className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full backdrop-blur-md transition-all flex items-center justify-center active:scale-90 cursor-pointer ${
               isFavorite
-                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
-                : 'bg-black/50 text-white hover:bg-black/70'
+                ? 'bg-[#ff2d55] text-white shadow-xs'
+                : 'bg-black/40 text-white hover:bg-black/60'
             }`}
           >
             <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
           </button>
 
           {/* Title & Metadata over image bottom */}
-          <div className="absolute bottom-4 left-4 right-4 text-white">
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-amber-500 text-stone-950">
-                {recipe.area}
-              </span>
-              <span className="text-[10px] font-semibold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md">
-                {recipe.category}
-              </span>
-              <span className="text-[10px] font-semibold bg-emerald-500 text-white px-2 py-0.5 rounded-md flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                {recipe.matchPercentage}% match
-              </span>
+          <div className="absolute bottom-4 inset-x-4 text-white">
+            <div className="flex items-center gap-1.5 text-xs text-white/80 mb-1">
+              <span className="font-semibold text-white">{recipe.area}</span>
+              <span aria-hidden="true">·</span>
+              <span>{recipe.category}</span>
+              <span aria-hidden="true">·</span>
+              <span className="text-[#34c759] font-semibold tabular-nums">{recipe.matchPercentage}% match</span>
             </div>
-            <h1 className="text-xl font-extrabold leading-tight text-white">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight text-white tracking-tight">
               {recipe.title}
             </h1>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-5 flex-1 space-y-6">
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-white border border-stone-200 text-center shadow-xs">
+        {/* Modal Body */}
+        <div className="p-4 sm:p-5 flex-1 space-y-5">
+          {/* iOS Grouped Metric Card */}
+          <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-white border border-black/[0.06] text-center shadow-xs">
             <div>
-              <p className="text-[10px] font-bold text-stone-600 uppercase">Estimated Time</p>
-              <p className="text-sm font-extrabold text-stone-900 mt-0.5 flex items-center justify-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                {recipe.estimatedTimeMinutes} min
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase">Prep &amp; Cook</p>
+              <p className="text-sm font-bold text-[#1d1d1f] mt-0.5 flex items-center justify-center gap-1 tabular-nums">
+                <Clock className="w-3.5 h-3.5 text-[#0071e3]" />
+                {recipe.estimatedTimeMinutes}m
               </p>
             </div>
-            <div className="border-x border-stone-100">
-              <p className="text-[10px] font-bold text-stone-600 uppercase">Difficulty</p>
-              <p className="text-sm font-extrabold text-stone-900 mt-0.5">
+            <div className="border-x border-black/[0.06]">
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase">Difficulty</p>
+              <p className="text-sm font-bold text-[#1d1d1f] mt-0.5">
                 {recipe.difficulty}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-stone-600 uppercase">Servings</p>
-              <p className="text-sm font-extrabold text-stone-900 mt-0.5">
-                {recipe.servings || 2} persons
+              <p className="text-[10px] font-semibold text-[#86868b] uppercase">Servings</p>
+              <p className="text-sm font-bold text-[#1d1d1f] mt-0.5 tabular-nums">
+                {recipe.servings || 2}
               </p>
             </div>
           </div>
 
-          {/* Ingredients Section */}
+          {/* Ingredients Section (Apple Notes Checklist Style) */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
-                <ChefHat className="w-4 h-4 text-amber-600" />
+              <h2 className="text-xs font-semibold text-[#86868b] uppercase tracking-wider">
                 Ingredients ({recipe.ingredients.length})
               </h2>
-              <span className="text-[11px] text-stone-600">
+              <span className="text-[11px] text-[#86868b]">
                 Tap to check off
               </span>
             </div>
 
-            <div className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-black/[0.06] divide-y divide-black/[0.04] overflow-hidden shadow-xs">
               {recipe.ingredients.map((ing, idx) => {
                 const isChecked = !!checkedIngredients[ing.name];
                 return (
@@ -140,39 +141,39 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                     key={idx}
                     onClick={() => toggleCheck(ing.name)}
                     className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
-                      isChecked ? 'bg-stone-50/80 line-through text-stone-400' : 'hover:bg-amber-50/40'
+                      isChecked ? 'bg-stone-50/70 text-[#86868b]' : 'hover:bg-stone-50/50'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div
-                        className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors ${
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
                           isChecked
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : 'border-stone-300 bg-white'
+                            ? 'bg-[#0071e3] border-[#0071e3] text-white'
+                            : 'border-[#d2d2d7] bg-white'
                         }`}
                       >
                         {isChecked && <CheckCircle2 className="w-3.5 h-3.5" />}
                       </div>
-                      <span className="text-xs font-semibold text-stone-800">
+                      <span className={`text-xs font-medium ${isChecked ? 'line-through text-[#86868b]' : 'text-[#1d1d1f]'}`}>
                         {ing.name}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-stone-700">
+                      <span className="text-xs font-semibold text-[#1d1d1f] tabular-nums">
                         {ing.measure}
                       </span>
                       {ing.hasIngredient ? (
-                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-md font-medium border border-emerald-200">
+                        <span className="text-[10px] text-[#34c759] font-medium">
                           In Pantry
                         </span>
                       ) : ing.isStaple ? (
-                        <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded-md font-medium">
-                          Basic Staple
+                        <span className="text-[10px] text-[#86868b] font-medium">
+                          Staple
                         </span>
                       ) : (
-                        <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md font-medium border border-amber-200">
-                          Need
+                        <span className="text-[10px] text-[#ff9500] font-medium">
+                          Missing
                         </span>
                       )}
                     </div>
@@ -182,43 +183,43 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             </div>
           </div>
 
-          {/* YouTube Video Link if present */}
+          {/* YouTube Tutorial Link */}
           {recipe.youtubeUrl && (
             <a
               href={recipe.youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 hover:bg-rose-100 transition-colors"
+              className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-black/[0.06] text-[#1d1d1f] hover:bg-stone-50 transition-colors shadow-xs"
             >
-              <div className="flex items-center gap-2 text-xs font-bold">
-                <Youtube className="w-4 h-4 text-rose-600" />
-                Watch Video Preparation Guide
+              <div className="flex items-center gap-2.5 text-xs font-semibold">
+                <Youtube className="w-4 h-4 text-[#ff3b30]" />
+                Watch Video Demonstration
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-rose-600" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#86868b]" />
             </a>
           )}
 
           {/* Step Sequence Overview */}
           <div>
-            <h2 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider mb-2">
-              Cooking Steps ({recipe.steps.length})
+            <h2 className="text-xs font-semibold text-[#86868b] uppercase tracking-wider mb-2">
+              Step-by-Step Instructions ({recipe.steps.length})
             </h2>
             <div className="space-y-2">
               {recipe.steps.map((step) => (
                 <div
                   key={step.stepNumber}
-                  className="p-3 rounded-2xl bg-white border border-stone-200 text-xs flex gap-3"
+                  className="p-3.5 rounded-2xl bg-white border border-black/[0.06] text-xs flex gap-3 shadow-xs"
                 >
-                  <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 font-extrabold flex items-center justify-center shrink-0 text-xs">
+                  <div className="w-5 h-5 rounded-full bg-black/[0.05] text-[#1d1d1f] font-semibold flex items-center justify-center shrink-0 text-xs tabular-nums">
                     {step.stepNumber}
                   </div>
-                  <div>
-                    <p className="text-stone-800 font-medium leading-relaxed">
+                  <div className="flex-1">
+                    <p className="text-[#1d1d1f] leading-relaxed">
                       {step.instruction}
                     </p>
                     {step.estimatedMinutes && (
-                      <span className="inline-block mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                        ⏱ ~{step.estimatedMinutes} minutes
+                      <span className="inline-block mt-1 text-[11px] font-medium text-[#86868b] tabular-nums">
+                        Approx. {step.estimatedMinutes} minutes
                       </span>
                     )}
                   </div>
@@ -229,17 +230,17 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
         </div>
 
         {/* Sticky Action Footer */}
-        <div className="p-4 bg-white border-t border-stone-200 shrink-0 flex items-center gap-2">
+        <div className="p-4 apple-glass border-t border-black/[0.06] shrink-0 sticky bottom-0">
           <button
             onClick={() => {
               onClose();
               onStartCooking(recipe);
             }}
             type="button"
-            className="flex-1 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-extrabold text-sm shadow-md shadow-amber-600/30 flex items-center justify-center gap-2 transition-all"
+            className="w-full py-3.5 px-4 rounded-2xl bg-[#0071e3] hover:bg-[#0077ed] active:scale-[0.98] text-white font-semibold text-sm shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4 fill-current" />
-            Start Voice Cooking Mode
+            <span>Start Voice Cooking Guide</span>
           </button>
         </div>
       </div>

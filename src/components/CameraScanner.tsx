@@ -5,13 +5,12 @@ import {
   Sparkles,
   RefreshCw,
   AlertCircle,
-  Zap,
-  ShieldCheck,
-  ZoomIn,
-  ZoomOut,
   Sliders,
   Key,
   Layers,
+  ChevronRight,
+  Info,
+  Check,
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
 
@@ -55,7 +54,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Multi-camera devices list and selected main camera
   const [availableBackCameras, setAvailableBackCameras] = useState<CameraDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
-  const [currentCameraLabel, setCurrentCameraLabel] = useState<string>('Main Camera');
+  const [currentCameraLabel, setCurrentCameraLabel] = useState<string>('1x Main');
 
   // Gemini API Key Status
   const [keyStatus, setKeyStatus] = useState<{
@@ -116,13 +115,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   }, [autoStart]);
 
-  // Helper to discover and prioritize the primary Main Wide Camera
+  // Helper to discover cameras
   const discoverCameras = async (): Promise<CameraDeviceInfo[]> => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter((d) => d.kind === 'videoinput');
 
-      // Separate back/rear cameras
       const backCameras: CameraDeviceInfo[] = videoDevices
         .filter((d) => {
           const l = d.label.toLowerCase();
@@ -137,7 +135,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         })
         .map((d) => {
           const l = d.label.toLowerCase();
-          // Detect if this is the main 1x wide camera vs telephoto/macro/virtual
           const isTelephotoOrMacro =
             l.includes('telephoto') ||
             l.includes('macro') ||
@@ -153,9 +150,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               l.includes('standard'));
 
           let cleanLabel = d.label || 'Back Camera';
-          if (isMain) cleanLabel = 'Main Wide (1x)';
-          else if (l.includes('ultra')) cleanLabel = 'Ultra Wide (0.5x)';
-          else if (l.includes('tele')) cleanLabel = 'Telephoto';
+          if (isMain) cleanLabel = '1x Main Wide';
+          else if (l.includes('ultra')) cleanLabel = '0.5x Ultra Wide';
+          else if (l.includes('tele')) cleanLabel = '2x Telephoto';
 
           return {
             deviceId: d.deviceId,
@@ -164,7 +161,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           };
         });
 
-      // Sort so main camera is always first
       backCameras.sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0));
       setAvailableBackCameras(backCameras);
       return backCameras;
@@ -174,7 +170,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   };
 
-  // Apply zoom to MediaStreamTrack (hardware) and state (digital fallback)
   const applyZoom = async (targetZoom: number, activeStream?: MediaStream | null) => {
     const clampedZoom = Math.min(Math.max(targetZoom, minZoom), maxZoom);
     setZoom(clampedZoom);
@@ -233,7 +228,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   };
 
-  // Start video stream targeting the MAIN camera
   const startCamera = async (
     mode: 'environment' | 'user' = facingMode,
     targetDeviceId?: string
@@ -244,23 +238,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         stream.getTracks().forEach((track) => track.stop());
       }
 
-      // First enumerate devices if in environment mode and no deviceId provided
       let chosenDeviceId = targetDeviceId || selectedCameraId;
       if (mode === 'environment' && !chosenDeviceId) {
         const foundCameras = await discoverCameras();
         if (foundCameras.length > 0) {
-          // Select the primary main camera (index 0 after sorting)
           chosenDeviceId = foundCameras[0].deviceId;
           setSelectedCameraId(chosenDeviceId);
           setCurrentCameraLabel(foundCameras[0].label);
         }
       }
 
-      // Configure video constraints with standard 3:4 mobile portrait aspect ratio
       const videoConstraints: MediaTrackConstraints = chosenDeviceId
         ? {
             deviceId: { exact: chosenDeviceId },
-            aspectRatio: { ideal: 0.75 }, // Standard 3:4 mobile photo aspect
+            aspectRatio: { ideal: 0.75 },
             width: { ideal: 1920 },
             height: { ideal: 1440 },
           }
@@ -278,11 +269,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       setStream(mediaStream);
 
-      // Inspect hardware zoom capability and explicitly reset to 1.0x (unzoomed main view)
       const track = mediaStream.getVideoTracks()[0];
       if (track) {
         if (track.label) {
-          setCurrentCameraLabel(track.label.includes('front') ? 'Front Camera' : 'Main Camera (1x)');
+          setCurrentCameraLabel(track.label.includes('front') ? 'Front' : '1x Wide');
         }
 
         if (track.getCapabilities) {
@@ -294,7 +284,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             setMaxZoom(maxZ);
             setHasHardwareZoom(true);
 
-            // Force native track to minimum 1.0x wide lens
             try {
               await (track as any).applyConstraints({
                 advanced: [{ zoom: minZ }],
@@ -314,12 +303,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       setCameraActive(true);
       setFacingMode(mode);
       setZoom(1.0);
-
-      // Re-enumerate to capture populated labels now that permission is granted
       discoverCameras();
     } catch (err: any) {
       console.warn('Camera access error:', err);
-      // Fallback: try basic environment request
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
@@ -335,7 +321,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         setZoom(1.0);
       } catch (fallbackErr: any) {
         setCameraError(
-          'Camera access was not granted or not available. You can upload a photo or use a sample.'
+          'Camera access not granted. You can select a photo from your library or try a sample.'
         );
         setCameraActive(false);
       }
@@ -363,14 +349,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     startCamera(nextMode);
   };
 
-  // Switch between back lenses (e.g. Main 1x vs Ultra Wide)
   const handleSwitchLens = (deviceId: string, label: string) => {
     setSelectedCameraId(deviceId);
     setCurrentCameraLabel(label);
     startCamera('environment', deviceId);
   };
 
-  // Capture frame from video stream with active zoom applied
   const capturePhoto = () => {
     if (!videoRef.current) return;
 
@@ -408,14 +392,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       ctx.drawImage(video, 0, 0, targetW, targetH);
     }
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
     stopCamera();
     setPreviewImage(dataUrl);
     analyzeImage(dataUrl);
   };
 
-  // Handle uploaded image file with auto-compression
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -443,7 +426,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
           setPreviewImage(compressed);
           stopCamera();
           analyzeImage(compressed);
@@ -459,10 +442,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     e.target.value = '';
   };
 
-  // Send photo to Gemini serverless endpoint via /api/gemini.ts
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
-    setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
+    setStatusMessage('Analyzing food ingredients with Gemini...');
 
     try {
       const payload = {
@@ -479,7 +461,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server returned ${response.status}: Failed to analyze image with Gemini`);
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -491,14 +473,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       });
     } catch (err: any) {
       console.error('Analysis error:', err);
-      alert(`Could not identify ingredients: ${err.message || 'Please try another photo'}`);
+      alert(`Ingredient recognition: ${err.message || 'Please try another photo'}`);
     } finally {
       setIsAnalyzing(false);
       setStatusMessage('');
     }
   };
 
-  // Instant Sample Testing
   const handleSelectSample = async (sample: SampleItem) => {
     setIsAnalyzing(true);
     setStatusMessage(`Loading ${sample.title}...`);
@@ -535,63 +516,58 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const zoomPresets = [1.0, 1.5, 2.0, 3.0];
 
   return (
-    <div className="w-full max-w-lg mx-auto pb-24">
-      {/* Gemini Key Status at the Start */}
-      <div className="px-4 pt-3 pb-1">
+    <div className="w-full max-w-lg mx-auto pb-24 pt-2">
+      {/* Apple-style Key Status Pill */}
+      <div className="px-4 mb-3">
         {keyStatus?.configured ? (
-          <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] shadow-xs">
-            <div className="flex items-center gap-1.5 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Gemini AI: Connected &amp; Ready
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-black/[0.03] border border-black/[0.05] text-[#1d1d1f] text-[11px]">
+            <div className="flex items-center gap-1.5 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+              <span>Gemini AI Connected</span>
             </div>
-            <span className="text-[10px] text-emerald-700 font-mono">
+            <span className="text-[#86868b] font-mono text-[10px]">
               {keyStatus.keySource}
             </span>
           </div>
         ) : keyStatus && !keyStatus.configured ? (
-          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+          <div className="p-3 rounded-2xl bg-[#ff9500]/10 border border-[#ff9500]/20 text-[#1d1d1f] text-xs flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Key className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>{keyStatus.message || 'Gemini Key not detected in environment.'}</span>
+              <Key className="w-4 h-4 text-[#ff9500] shrink-0" />
+              <span>{keyStatus.message || 'Gemini API Key missing'}</span>
             </div>
             <button
               onClick={checkKeyStatus}
               disabled={isCheckingKey}
               type="button"
-              className="px-2 py-1 rounded-lg bg-amber-200 text-amber-900 font-bold text-[10px] hover:bg-amber-300"
+              className="px-2.5 py-1 rounded-full bg-[#1d1d1f] text-white font-medium text-[11px] active:scale-95 transition-transform"
             >
-              {isCheckingKey ? 'Checking...' : 'Recheck'}
+              {isCheckingKey ? 'Checking...' : 'Check'}
             </button>
           </div>
         ) : null}
       </div>
 
-      {/* Top Title Banner */}
-      <div className="px-4 pt-2 pb-2 text-center">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          Gemini AI Food Vision
-        </span>
-        <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
-          Snap Your Ingredients
+      {/* Apple Large Title Header */}
+      <div className="px-4 mb-3 text-center sm:text-left">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1d1f]">
+          Capture Ingredients
         </h1>
-        <p className="text-stone-600 text-xs mt-1">
-          Connected to Main Wide Camera (1x). Pinch with 2 fingers to zoom in &amp; out.
+        <p className="text-[#86868b] text-xs sm:text-sm mt-0.5">
+          Take a photo of your kitchen counter or fridge to detect items automatically.
         </p>
       </div>
 
-      {/* Compact Viewfinder Region */}
-      <div className="px-4 mt-2">
+      {/* iPhone Camera Frame */}
+      <div className="px-4">
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="relative w-full h-64 sm:h-72 max-w-md mx-auto bg-stone-950 rounded-2xl overflow-hidden shadow-xl border border-stone-800/80 flex flex-col items-center justify-center select-none touch-none"
+          className="relative w-full aspect-[4/3] sm:aspect-[3/2] bg-[#000000] rounded-[28px] overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-black/10 flex flex-col items-center justify-center select-none touch-none"
         >
-          {/* Live Camera View */}
           {cameraActive ? (
             <>
-              {/* Scaled Video for Digital Zoom Preview */}
+              {/* Scaled Video */}
               <div className="w-full h-full overflow-hidden flex items-center justify-center bg-black">
                 <video
                   ref={videoRef}
@@ -606,80 +582,61 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 />
               </div>
 
-              {/* Viewfinder Overlay Targeting Frame */}
-              <div className="absolute inset-6 border border-white/30 rounded-2xl pointer-events-none flex items-center justify-center">
-                <div className="w-8 h-8 border-t-2 border-l-2 border-amber-400 absolute top-0 left-0 rounded-tl-lg" />
-                <div className="w-8 h-8 border-t-2 border-r-2 border-amber-400 absolute top-0 right-0 rounded-tr-lg" />
-                <div className="w-8 h-8 border-b-2 border-l-2 border-amber-400 absolute bottom-0 left-0 rounded-bl-lg" />
-                <div className="w-8 h-8 border-b-2 border-r-2 border-amber-400 absolute bottom-0 right-0 rounded-br-lg" />
+              {/* iOS Camera Focus Target Framing */}
+              <div className="absolute inset-5 border border-white/20 rounded-[20px] pointer-events-none flex items-center justify-center">
+                {/* Yellow Apple Focus Corners */}
+                <div className="w-6 h-6 border-t-[2px] border-l-[2px] border-[#ffd60a] absolute top-0 left-0 rounded-tl-sm" />
+                <div className="w-6 h-6 border-t-[2px] border-r-[2px] border-[#ffd60a] absolute top-0 right-0 rounded-tr-sm" />
+                <div className="w-6 h-6 border-b-[2px] border-l-[2px] border-[#ffd60a] absolute bottom-0 left-0 rounded-bl-sm" />
+                <div className="w-6 h-6 border-b-[2px] border-r-[2px] border-[#ffd60a] absolute bottom-0 right-0 rounded-br-sm" />
 
-                {/* Main Camera Indicator Badge */}
-                <div className="absolute top-2 left-2 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-md">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {/* Top Lens Info Pill */}
+                <div className="absolute top-2.5 left-2.5 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-medium text-white/90 border border-white/10 flex items-center gap-1.5 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
                   {currentCameraLabel}
                 </div>
 
-                {/* Active Zoom Badge */}
-                <div className="absolute top-2 right-2 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white border border-white/20 flex items-center gap-1 shadow-md">
-                  <ZoomIn className="w-3 h-3 text-amber-400" />
+                {/* Zoom Level Indicator */}
+                <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-semibold text-[#ffd60a] border border-white/10 shadow-sm tabular-nums">
                   {zoom.toFixed(1)}x
                 </div>
               </div>
 
-              {/* Dynamic Pinch Indicator Overlay */}
+              {/* Dynamic Pinch Indicator */}
               {isPinching && (
-                <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
-                  <div className="bg-black/85 backdrop-blur-md px-4 py-2 rounded-2xl border border-amber-500/50 text-amber-400 font-mono font-extrabold text-lg flex items-center gap-2 shadow-2xl animate-pulse">
-                    <ZoomIn className="w-5 h-5 text-amber-400" />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                  <div className="bg-black/80 backdrop-blur-xl px-4 py-2 rounded-full border border-white/20 text-[#ffd60a] font-semibold text-sm shadow-xl tabular-nums">
                     {zoom.toFixed(1)}x Zoom
                   </div>
                 </div>
               )}
 
-              {/* Multi-Lens Selector Pill (if multiple back cameras exist) */}
-              {availableBackCameras.length > 1 && (
-                <div className="absolute top-12 left-4 z-10 flex gap-1 bg-black/60 backdrop-blur-md p-1 rounded-full border border-white/20">
-                  {availableBackCameras.slice(0, 3).map((cam) => (
-                    <button
-                      key={cam.deviceId}
-                      type="button"
-                      onClick={() => handleSwitchLens(cam.deviceId, cam.label)}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
-                        selectedCameraId === cam.deviceId
-                          ? 'bg-amber-500 text-stone-950'
-                          : 'text-white/80 hover:text-white'
-                      }`}
-                    >
-                      {cam.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Floating Camera Zoom Controls Bar (1x, 1.5x, 2x, 3x) */}
+              {/* iPhone Zoom Dial Control [0.5] [ 1x ] [ 2 ] [ 3 ] */}
               <div className="absolute bottom-3 inset-x-4 flex items-center justify-center gap-1.5 z-10">
-                <div className="bg-black/70 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
-                  {zoomPresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => applyZoom(preset)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
-                        Math.abs(zoom - preset) < 0.1
-                          ? 'bg-amber-500 text-stone-950 scale-105 shadow-xs'
-                          : 'text-white/80 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      {preset}x
-                    </button>
-                  ))}
+                <div className="bg-black/60 backdrop-blur-xl px-2 py-1 rounded-full border border-white/15 flex items-center gap-1 shadow-lg">
+                  {zoomPresets.map((preset) => {
+                    const isSelected = Math.abs(zoom - preset) < 0.1;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => applyZoom(preset)}
+                        className={`w-8 h-8 rounded-full text-[11px] font-semibold transition-all flex items-center justify-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-white text-black shadow-xs scale-105'
+                            : 'text-white/80 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {preset === 1 ? '1x' : preset}
+                      </button>
+                    );
+                  })}
 
-                  {/* Zoom Fine-Tuning Toggle */}
                   <button
                     type="button"
                     onClick={() => setShowZoomSlider(!showZoomSlider)}
-                    className={`p-1 rounded-full transition-colors ml-1 ${
-                      showZoomSlider ? 'text-amber-400 bg-white/20' : 'text-white/70 hover:text-white'
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ml-0.5 cursor-pointer ${
+                      showZoomSlider ? 'text-[#ffd60a] bg-white/20' : 'text-white/70 hover:text-white'
                     }`}
                     title="Fine tune zoom"
                   >
@@ -688,10 +645,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 </div>
               </div>
 
-              {/* Continuous Zoom Slider when toggled */}
+              {/* Slider overlay */}
               {showZoomSlider && (
-                <div className="absolute bottom-14 inset-x-8 bg-black/85 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center gap-2.5 z-10 animate-fade-in shadow-xl">
-                  <ZoomOut className="w-3.5 h-3.5 text-white/70" />
+                <div className="absolute bottom-16 inset-x-8 bg-black/80 backdrop-blur-xl p-2.5 rounded-2xl border border-white/20 flex items-center gap-2.5 z-10 animate-apple-fade-in shadow-xl">
+                  <span className="text-[10px] text-white/60 font-medium">1x</span>
                   <input
                     type="range"
                     min={minZoom}
@@ -699,27 +656,26 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     step={0.1}
                     value={zoom}
                     onChange={(e) => applyZoom(parseFloat(e.target.value))}
-                    className="flex-1 accent-amber-500 cursor-pointer h-1.5 bg-white/30 rounded-lg"
+                    className="flex-1 accent-[#ffd60a] cursor-pointer h-1.5 bg-white/25 rounded-lg"
                   />
-                  <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-[11px] font-mono font-bold text-white min-w-[32px] text-right">
+                  <span className="text-[11px] font-mono font-semibold text-[#ffd60a] min-w-[28px] text-right">
                     {zoom.toFixed(1)}x
                   </span>
                 </div>
               )}
 
-              {/* Flip camera button */}
+              {/* Flip camera shortcut */}
               <button
                 onClick={toggleCameraFacing}
                 type="button"
-                className="absolute top-3 right-3 p-2.5 rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-all active:scale-95"
-                title="Switch Camera (Front/Back)"
+                className="absolute top-2.5 right-14 w-8 h-8 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                title="Switch Camera"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </>
           ) : previewImage ? (
-            /* Preview of captured image */
+            /* Image Preview */
             <div className="relative w-full h-full">
               <img
                 src={previewImage}
@@ -727,104 +683,95 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 className="w-full h-full object-cover"
               />
               {isAnalyzing && (
-                <div className="absolute inset-0 bg-stone-950/75 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center">
-                  <div className="relative">
-                    <div className="w-16 h-16 rounded-full border-4 border-amber-500/30 border-t-amber-500 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
-                  </div>
-                  <p className="text-white font-bold text-sm mt-4">
-                    Gemini AI Vision Analyzing...
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                  <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white animate-spin mb-3" />
+                  <p className="text-white font-semibold text-sm">
+                    Analyzing Ingredients
                   </p>
-                  <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
+                  <p className="text-white/70 text-xs mt-1 max-w-xs">
                     {statusMessage}
                   </p>
                 </div>
               )}
             </div>
           ) : (
-            /* Standby State with Default Picture when Camera is Not Activated */
+            /* Standby State with Apple Glass Button */
             <div className="relative w-full h-full group overflow-hidden">
-              {/* Default Culinary Food Photography */}
               <img
                 src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80"
-                alt="Fresh culinary ingredients standby"
-                className="w-full h-full object-cover filter brightness-[0.65] contrast-[1.05] transition-transform duration-500 group-hover:scale-105"
+                alt="Culinary ingredients standby"
+                className="w-full h-full object-cover filter brightness-[0.7] contrast-[1.05] transition-transform duration-700 group-hover:scale-105"
               />
 
-              {/* Standby Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/30 to-stone-950/60 flex flex-col items-center justify-between p-3.5 text-center">
-                {/* Standby Badge */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/40 flex flex-col items-center justify-between p-4 text-center">
                 <div className="self-center">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-black/60 backdrop-blur-md text-amber-300 border border-amber-500/30 shadow-md">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    Camera Standby
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-black/40 backdrop-blur-xl text-white/90 border border-white/10 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+                    Camera Ready
                   </span>
                 </div>
 
-                {/* Central Button to Initialise Camera */}
                 <div className="flex flex-col items-center my-auto">
                   <button
                     type="button"
                     onClick={() => startCamera('environment')}
-                    className="px-5 py-2.5 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-extrabold text-sm shadow-xl shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 cursor-pointer"
+                    className="px-6 py-3 rounded-full bg-white text-[#1d1d1f] font-semibold text-sm shadow-[0_4px_20px_rgba(0,0,0,0.25)] hover:bg-[#f5f5f7] active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
                   >
-                    <Camera className="w-4 h-4 stroke-[2.2]" />
-                    <span>Initialise Camera</span>
+                    <Camera className="w-4 h-4 text-[#1d1d1f]" />
+                    <span>Open Camera</span>
                   </button>
-                  <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
-                    Tap to start live scanner &amp; zoom
+                  <p className="text-white/75 text-[11px] mt-2 font-normal">
+                    Point at fresh vegetables, pantry items, or spices
                   </p>
                 </div>
 
-                {/* Bottom hint */}
-                <div className="text-[10px] text-stone-300/80 font-medium">
-                  Main Wide Camera (1x) • AI Ingredient Detection
+                <div className="text-[10px] text-white/50 font-normal">
+                  Powered by Gemini Vision Intelligence
                 </div>
               </div>
             </div>
           )}
 
-          {/* Camera Error Notice */}
           {cameraError && (
-            <div className="absolute inset-x-4 bottom-4 p-3 rounded-xl bg-red-950/90 border border-red-800 text-red-200 text-xs flex items-start gap-2 backdrop-blur-md">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+            <div className="absolute inset-x-4 bottom-4 p-3 rounded-2xl bg-black/80 border border-red-500/30 text-white text-xs flex items-start gap-2 backdrop-blur-md">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[#ff453a]" />
               <span>{cameraError}</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Primary Capture Controls */}
+      {/* Shutter Deck Controls */}
       <div className="px-4 mt-4">
         {cameraActive ? (
-          <div className="flex items-center justify-between gap-3 bg-stone-900/90 p-3 rounded-2xl border border-stone-800">
+          <div className="flex items-center justify-between px-6 py-2.5 bg-black rounded-[24px] shadow-sm">
+            {/* Cancel Button */}
             <button
               onClick={stopCamera}
               type="button"
-              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors"
+              className="text-white/80 hover:text-white text-xs font-medium px-2 py-1 cursor-pointer active:opacity-60"
             >
               Cancel
             </button>
 
-            {/* Shutter Button */}
+            {/* Apple Concentric Shutter Button */}
             <button
               onClick={capturePhoto}
               type="button"
-              className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 p-1 shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
-              title="Capture Photo"
+              aria-label="Take Photo"
+              className="w-[68px] h-[68px] rounded-full border-[3px] border-white flex items-center justify-center p-1 cursor-pointer active:scale-90 transition-transform duration-100"
             >
-              <div className="w-13 h-13 rounded-full border-2 border-white flex items-center justify-center bg-white/20">
-                <div className="w-9 h-9 rounded-full bg-white shadow-xs" />
-              </div>
+              <div className="w-full h-full rounded-full bg-white transition-opacity active:bg-white/80" />
             </button>
 
+            {/* Flip Lens */}
             <button
               onClick={toggleCameraFacing}
               type="button"
-              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors flex items-center gap-1.5"
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer active:scale-95"
+              title="Flip camera"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Flip
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         ) : (
@@ -833,20 +780,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               onClick={() => startCamera('environment')}
               disabled={isAnalyzing}
               type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-[#0071e3] hover:bg-[#0077ed] active:scale-[0.98] text-white font-semibold text-sm shadow-sm transition-all cursor-pointer disabled:opacity-50"
             >
               <Camera className="w-4 h-4" />
-              Initialise Camera
+              <span>Use Camera</span>
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isAnalyzing}
               type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white hover:bg-stone-50 active:scale-[0.98] text-[#1d1d1f] font-semibold text-sm border border-black/[0.08] shadow-xs transition-all cursor-pointer disabled:opacity-50"
             >
-              <ImageIcon className="w-4 h-4 text-amber-400" />
-              Choose Photo
+              <ImageIcon className="w-4 h-4 text-[#0071e3]" />
+              <span>Photo Library</span>
             </button>
 
             <input
@@ -861,80 +808,68 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         )}
       </div>
 
-      {/* Pantry Status Banner */}
+      {/* Pantry Notification Banner (Apple Notification Banner style) */}
       {pantryCount > 0 && (
         <div className="px-4 mt-4">
-          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+          <div className="p-3.5 rounded-2xl bg-white border border-black/[0.06] shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#34c759]/10 text-[#34c759] flex items-center justify-center font-bold text-xs">
                 {pantryCount}
               </div>
               <div>
-                <p className="text-emerald-900 font-semibold text-xs">
-                  {pantryCount} Ingredient{pantryCount > 1 ? 's' : ''} Collected
+                <p className="text-[#1d1d1f] font-semibold text-xs">
+                  {pantryCount} Ingredient{pantryCount > 1 ? 's' : ''} in Pantry
                 </p>
-                <p className="text-emerald-700 text-[11px]">
-                  Snap more items or view pantry to get Gemini recipes.
+                <p className="text-[#86868b] text-[11px]">
+                  Ready to discover tailored recipes
                 </p>
               </div>
             </div>
             <button
               onClick={onViewPantry}
               type="button"
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-xs"
+              className="px-3.5 py-1.5 rounded-full bg-[#1d1d1f] text-white text-xs font-medium hover:bg-black transition-colors cursor-pointer active:scale-95"
             >
-              View List →
+              Review
             </button>
           </div>
         </div>
       )}
 
-      {/* Instant Demo Presets Section */}
+      {/* Instant Demo Presets (Apple Photos / Album Style) */}
       <div className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-2.5">
-          <h2 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-amber-500" />
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-[#86868b] uppercase tracking-wider">
             Quick Test Samples
           </h2>
-          <span className="text-[11px] text-stone-600 font-medium">1-Tap Analyze</span>
+          <span className="text-[11px] text-[#86868b]">Tap to analyze</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-3">
           {SAMPLE_INGREDIENT_SCENARIOS.map((sample) => (
             <button
               key={sample.id}
               onClick={() => handleSelectSample(sample)}
               disabled={isAnalyzing}
               type="button"
-              className="group text-left p-2.5 rounded-2xl bg-white border border-stone-200 hover:border-amber-400 hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+              className="group text-left p-2.5 rounded-[20px] bg-white border border-black/[0.06] hover:shadow-md transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
             >
-              <div className="aspect-16/10 w-full rounded-xl overflow-hidden mb-2 relative">
+              <div className="aspect-[16/10] w-full rounded-[14px] overflow-hidden mb-2 relative bg-stone-100">
                 <img
                   src={sample.imageUrl}
                   alt={sample.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-300"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
-                  <span className="text-[10px] text-white font-medium bg-amber-600/90 px-1.5 py-0.5 rounded-md">
-                    Click to Scan
-                  </span>
-                </div>
               </div>
-              <h3 className="font-bold text-stone-800 text-xs leading-snug line-clamp-1">
+              <h3 className="font-semibold text-[#1d1d1f] text-xs leading-snug truncate">
                 {sample.title}
               </h3>
-              <p className="text-stone-600 text-[10px] line-clamp-1 mt-0.5">
+              <p className="text-[#86868b] text-[10px] truncate mt-0.5">
                 {sample.subtitle}
               </p>
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Privacy and Camera Tip */}
-      <div className="px-6 mt-6 flex items-center justify-center gap-2 text-stone-600 text-[11px] text-center">
-        <ShieldCheck className="w-3.5 h-3.5 text-stone-600" />
-        <span>Main wide camera connected. Images are processed directly by Gemini AI.</span>
       </div>
     </div>
   );

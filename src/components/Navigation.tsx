@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, UtensilsCrossed, Heart, ChefHat, Layers } from 'lucide-react';
+import { Camera, Utensils, Heart, ChefHat, Package, Sparkles } from 'lucide-react';
 import { AppTab } from '../types';
 
 interface NavigationProps {
@@ -18,31 +18,35 @@ export const TopBar: React.FC<{
   onGoToScanner: () => void;
 }> = ({ currentTab, pantryCount, onGoToScanner }) => {
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-3">
-      <div className="max-w-lg mx-auto flex items-center justify-between">
-        <div
+    <header className="sticky top-0 z-40 apple-glass border-b border-black/[0.06] transition-colors">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        {/* Apple Wordmark Lockup */}
+        <button
           onClick={onGoToScanner}
-          className="flex items-center gap-2 cursor-pointer select-none group"
+          type="button"
+          className="flex items-center gap-2.5 text-left group transition-opacity active:opacity-70 cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-500/20 group-hover:scale-105 transition-transform">
-            <ChefHat className="w-4 h-4 stroke-[2.5]" />
+          <div className="w-8 h-8 rounded-[10px] bg-[#1d1d1f] flex items-center justify-center text-white shadow-xs group-hover:scale-[1.02] transition-transform">
+            <ChefHat className="w-4 h-4 text-amber-400 stroke-[2.2]" />
           </div>
-          <div>
-            <span className="font-extrabold text-stone-900 text-base tracking-tight block leading-tight font-serif">
+          <div className="flex flex-col">
+            <span className="font-semibold text-[15px] text-[#1d1d1f] tracking-tight leading-none">
               SnapChef
             </span>
-            <span className="text-[10px] text-amber-700 font-semibold tracking-wider uppercase block">
-              AI Vision &amp; Voice Cook
+            <span className="text-[10px] text-[#86868b] font-medium tracking-normal mt-0.5">
+              AI Vision &amp; Cooking Assistant
             </span>
           </div>
-        </div>
+        </button>
 
+        {/* Right Status / Quick Actions */}
         <div className="flex items-center gap-2">
           {pantryCount > 0 && currentTab !== 'pantry' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {pantryCount} items
-            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/[0.04] text-[#1d1d1f] text-xs font-medium border border-black/[0.04]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+              <span className="tabular-nums font-semibold">{pantryCount}</span>
+              <span className="text-[#86868b]">in pantry</span>
+            </div>
           )}
         </div>
       </div>
@@ -59,107 +63,83 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
   hasActiveCookingSession,
   onResumeCooking,
 }) => {
-  // If in active fullscreen cooking mode, the assistant has its own footer
   if (currentTab === 'cooking') return null;
 
+  const tabs: { id: AppTab; label: string; icon: React.ReactNode; badge?: number }[] = [
+    {
+      id: 'scanner',
+      label: 'Camera',
+      icon: <Camera className="w-[21px] h-[21px] stroke-[2]" />,
+    },
+    {
+      id: 'pantry',
+      label: 'Pantry',
+      icon: <Package className="w-[21px] h-[21px] stroke-[2]" />,
+      badge: pantryCount,
+    },
+    {
+      id: 'recipes',
+      label: 'Recipes',
+      icon: <Utensils className="w-[21px] h-[21px] stroke-[2]" />,
+      badge: recipesCount,
+    },
+    {
+      id: 'favorites',
+      label: 'Saved',
+      icon: <Heart className={`w-[21px] h-[21px] stroke-[2] ${currentTab === 'favorites' && favoritesCount > 0 ? 'fill-current' : ''}`} />,
+      badge: favoritesCount,
+    },
+  ];
+
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-stone-200 px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl">
-      <div className="max-w-lg mx-auto flex items-center justify-around relative">
-        {/* 1. Pantry */}
-        <button
-          onClick={() => onTabChange('pantry')}
-          type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
-            currentTab === 'pantry'
-              ? 'text-amber-600 font-bold scale-105'
-              : 'text-stone-500 hover:text-stone-800 font-medium'
-          }`}
-        >
-          <div className="relative">
-            <Layers className="w-5 h-5 mb-0.5" />
-            {pantryCount > 0 && (
-              <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-extrabold flex items-center justify-center">
-                {pantryCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px]">Pantry</span>
-        </button>
-
-        {/* 2. Recipes */}
-        <button
-          onClick={() => onTabChange('recipes')}
-          type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
-            currentTab === 'recipes'
-              ? 'text-amber-600 font-bold scale-105'
-              : 'text-stone-500 hover:text-stone-800 font-medium'
-          }`}
-        >
-          <div className="relative">
-            <UtensilsCrossed className="w-5 h-5 mb-0.5" />
-            {recipesCount > 0 && (
-              <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center">
-                {recipesCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px]">Recipes</span>
-        </button>
-
-        {/* 3. HERO CENTER CAMERA BUTTON: Auto-opens camera */}
-        <div className="relative -top-3">
-          <button
-            onClick={() => onTabChange('scanner')}
-            type="button"
-            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl shadow-amber-500/30 transition-all active:scale-95 border-2 border-white ${
-              currentTab === 'scanner'
-                ? 'bg-gradient-to-tr from-amber-500 to-orange-500 ring-4 ring-amber-400/30 scale-105'
-                : 'bg-gradient-to-tr from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
-            }`}
-            title="Open Camera"
-          >
-            <Camera className="w-6 h-6 stroke-[2.2]" />
-          </button>
-        </div>
-
-        {/* 4. Favorites */}
-        <button
-          onClick={() => onTabChange('favorites')}
-          type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
-            currentTab === 'favorites'
-              ? 'text-rose-500 font-bold scale-105'
-              : 'text-stone-500 hover:text-stone-800 font-medium'
-          }`}
-        >
-          <div className="relative">
-            <Heart
-              className={`w-5 h-5 mb-0.5 ${
-                favoritesCount > 0 && currentTab === 'favorites' ? 'fill-current' : ''
+    <nav
+      aria-label="App Navigation"
+      className="fixed bottom-0 inset-x-0 z-40 apple-glass border-t border-black/[0.07] px-3 pt-1.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] transition-colors"
+    >
+      <div className="max-w-md mx-auto flex items-center justify-around relative">
+        {tabs.map((tab) => {
+          const isActive = currentTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              type="button"
+              className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all duration-150 min-h-[44px] cursor-pointer active:scale-95 ${
+                isActive ? 'text-[#0071e3]' : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
-            />
-            {favoritesCount > 0 && (
-              <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center">
-                {favoritesCount}
+            >
+              <div className="relative flex items-center justify-center">
+                {tab.icon}
+                {Boolean(tab.badge && tab.badge > 0) && (
+                  <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[#ff3b30] text-white text-[10px] font-bold flex items-center justify-center tabular-nums leading-none shadow-xs">
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] mt-1 tracking-tight leading-none ${isActive ? 'font-semibold' : 'font-normal'}`}>
+                {tab.label}
               </span>
-            )}
-          </div>
-          <span className="text-[10px]">Favorites</span>
-        </button>
+            </button>
+          );
+        })}
 
-        {/* 5. Active Cooking Session */}
+        {/* Active Cooking Session Indicator */}
         {hasActiveCookingSession && (
           <button
             onClick={onResumeCooking}
             type="button"
-            className="flex flex-col items-center py-1 px-3 rounded-2xl text-amber-600 font-extrabold animate-pulse"
+            className="flex flex-col items-center justify-center flex-1 py-1 rounded-xl text-[#ff9500] min-h-[44px] cursor-pointer active:scale-95"
           >
-            <ChefHat className="w-5 h-5 mb-0.5 text-amber-600" />
-            <span className="text-[10px]">Cooking</span>
+            <div className="relative flex items-center justify-center">
+              <ChefHat className="w-[21px] h-[21px] stroke-[2.2] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-[#ff9500] absolute -top-0.5 -right-0.5" />
+            </div>
+            <span className="text-[10px] font-semibold mt-1 tracking-tight leading-none">
+              Cooking
+            </span>
           </button>
         )}
       </div>
-    </div>
+    </nav>
   );
 };
