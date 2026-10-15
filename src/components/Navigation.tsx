@@ -5,7 +5,6 @@ import {
   Heart,
   ChefHat,
   Layers,
-  Crown,
   Globe,
   Check,
   ChevronDown,
@@ -89,7 +88,61 @@ export const TopBar: React.FC<{
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Language Toggle Dropdown */}
+          {/* Pantry Items Counter Badge */}
+          {pantryCount > 0 && currentTab !== 'pantry' && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {pantryCount}
+            </span>
+          )}
+
+          {/* App Usage / Energy Display (to the left of language option) */}
+          {usageState && onOpenUsageModal && (
+            <button
+              onClick={onOpenUsageModal}
+              type="button"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
+                isPro
+                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                  : usageState.count === 0
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+              }`}
+              title={
+                isPro
+                  ? 'Chef Pro: Unlimited Free Cooking Generations'
+                  : usageState.count === 0
+                  ? `Usage limit reached (0/3). 1 credit refreshes in ${formatMinutes(getRemainingRefreshMinutes(usageState))}`
+                  : `Free Cooking Credits: ${usageState.count}/${usageState.maxCount}. Tap to view status or watch ads.`
+              }
+            >
+              <Zap
+                className={`w-3.5 h-3.5 ${
+                  isPro
+                    ? 'text-amber-600 fill-amber-600'
+                    : usageState.count === 0
+                    ? 'text-rose-500 fill-rose-500'
+                    : 'text-amber-500 fill-amber-500'
+                }`}
+              />
+              <span className="text-[11px] font-black font-mono tracking-tight">
+                {isPro ? (
+                  'VIP'
+                ) : usageState.count === 0 ? (
+                  <span>
+                    0/3{' '}
+                    <span className="text-[10px] text-rose-600 font-bold">
+                      ({formatMinutes(getRemainingRefreshMinutes(usageState))})
+                    </span>
+                  </span>
+                ) : (
+                  `${usageState.count}/${usageState.maxCount}`
+                )}
+              </span>
+            </button>
+          )}
+
+          {/* Language Option at Top Right */}
           <div className="relative" ref={langMenuRef}>
             <button
               onClick={() => setIsLangMenuOpen((prev) => !prev)}
@@ -149,76 +202,6 @@ export const TopBar: React.FC<{
               </div>
             )}
           </div>
-
-          {/* App Usage Counter Badge (3/3, 2-hr refresh countdown on minute) */}
-          {usageState && onOpenUsageModal && (
-            <button
-              onClick={onOpenUsageModal}
-              type="button"
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
-                isPro
-                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                  : usageState.count === 0
-                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 animate-pulse'
-                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-              }`}
-              title={
-                isPro
-                  ? 'Chef Pro: Unlimited Free Cooking Generations'
-                  : usageState.count === 0
-                  ? `Usage limit reached (0/3). 1 credit refreshes in ${formatMinutes(getRemainingRefreshMinutes(usageState))}`
-                  : `Free Cooking Credits: ${usageState.count}/${usageState.maxCount}. Tap to view status or watch ads.`
-              }
-            >
-              <Zap
-                className={`w-3.5 h-3.5 ${
-                  isPro
-                    ? 'text-amber-600 fill-amber-600'
-                    : usageState.count === 0
-                    ? 'text-rose-500 fill-rose-500'
-                    : 'text-amber-500 fill-amber-500'
-                }`}
-              />
-              <span className="text-[11px] font-black font-mono tracking-tight">
-                {isPro ? (
-                  'VIP'
-                ) : usageState.count === 0 ? (
-                  <span>
-                    0/3{' '}
-                    <span className="text-[10px] text-rose-600 font-bold">
-                      ({formatMinutes(getRemainingRefreshMinutes(usageState))})
-                    </span>
-                  </span>
-                ) : (
-                  `${usageState.count}/${usageState.maxCount}`
-                )}
-              </span>
-            </button>
-          )}
-
-          {/* Chef Pro / Premium Badge or Button */}
-          {onOpenProModal && (
-            <button
-              onClick={onOpenProModal}
-              type="button"
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                isPro
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black shadow-amber-500/25 ring-2 ring-amber-400/40'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
-              }`}
-              title="Chef Pro Premium Features"
-            >
-              <Crown className={`w-3.5 h-3.5 ${isPro ? 'text-stone-950' : 'text-amber-600'}`} />
-              <span className="text-[11px]">{isPro ? t('chefPro', currentLanguage) : t('tryPro', currentLanguage)}</span>
-            </button>
-          )}
-
-          {pantryCount > 0 && currentTab !== 'pantry' && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {pantryCount}
-            </span>
-          )}
         </div>
       </div>
     </header>

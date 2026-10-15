@@ -161,7 +161,7 @@ export default function App() {
     }
   }, [favorites]);
 
-  // Verify invitation code against server env vars starting with vibe_
+  // Verify invitation code against server
   const handleActivateWithCode = async (
     code: string
   ): Promise<{ success: boolean; message?: string }> => {
@@ -193,7 +193,7 @@ export default function App() {
       } else {
         return {
           success: false,
-          message: data.error || 'Invalid invitation code. Codes must match an authorized vibe_* pass.',
+          message: data.error || 'Invalid invitation code. Please check your code and try again.',
         };
       }
     } catch (err: any) {
