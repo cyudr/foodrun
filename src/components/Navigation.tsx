@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, UtensilsCrossed, Heart, ChefHat, Layers } from 'lucide-react';
+import { Camera, UtensilsCrossed, Heart, ChefHat, Layers, Crown, Sparkles } from 'lucide-react';
 import { AppTab } from '../types';
 
 interface NavigationProps {
@@ -16,7 +16,9 @@ export const TopBar: React.FC<{
   currentTab: AppTab;
   pantryCount: number;
   onGoToScanner: () => void;
-}> = ({ currentTab, pantryCount, onGoToScanner }) => {
+  isPro?: boolean;
+  onOpenProModal?: () => void;
+}> = ({ currentTab, pantryCount, onGoToScanner, isPro = false, onOpenProModal }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-3">
       <div className="max-w-lg mx-auto flex items-center justify-between">
@@ -38,10 +40,27 @@ export const TopBar: React.FC<{
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Chef Pro / Premium Badge or Button */}
+          {onOpenProModal && (
+            <button
+              onClick={onOpenProModal}
+              type="button"
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                isPro
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black shadow-amber-500/25 ring-2 ring-amber-400/40'
+                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
+              }`}
+              title="Chef Pro Premium Features"
+            >
+              <Crown className={`w-3.5 h-3.5 ${isPro ? 'text-stone-950' : 'text-amber-600'}`} />
+              <span>{isPro ? 'Chef Pro' : 'Try Pro'}</span>
+            </button>
+          )}
+
           {pantryCount > 0 && currentTab !== 'pantry' && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {pantryCount} items
+              {pantryCount}
             </span>
           )}
         </div>
@@ -69,7 +88,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
         <button
           onClick={() => onTabChange('pantry')}
           type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
+          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative cursor-pointer ${
             currentTab === 'pantry'
               ? 'text-amber-600 font-bold scale-105'
               : 'text-stone-500 hover:text-stone-800 font-medium'
@@ -90,7 +109,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
         <button
           onClick={() => onTabChange('recipes')}
           type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
+          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative cursor-pointer ${
             currentTab === 'recipes'
               ? 'text-amber-600 font-bold scale-105'
               : 'text-stone-500 hover:text-stone-800 font-medium'
@@ -112,7 +131,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
           <button
             onClick={() => onTabChange('scanner')}
             type="button"
-            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl shadow-amber-500/30 transition-all active:scale-95 border-2 border-white ${
+            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl shadow-amber-500/30 transition-all active:scale-95 border-2 border-white cursor-pointer ${
               currentTab === 'scanner'
                 ? 'bg-gradient-to-tr from-amber-500 to-orange-500 ring-4 ring-amber-400/30 scale-105'
                 : 'bg-gradient-to-tr from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
@@ -127,7 +146,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
         <button
           onClick={() => onTabChange('favorites')}
           type="button"
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative ${
+          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition-all relative cursor-pointer ${
             currentTab === 'favorites'
               ? 'text-rose-500 font-bold scale-105'
               : 'text-stone-500 hover:text-stone-800 font-medium'
@@ -153,7 +172,7 @@ export const BottomTabBar: React.FC<NavigationProps> = ({
           <button
             onClick={onResumeCooking}
             type="button"
-            className="flex flex-col items-center py-1 px-3 rounded-2xl text-amber-600 font-extrabold animate-pulse"
+            className="flex flex-col items-center py-1 px-3 rounded-2xl text-amber-600 font-extrabold animate-pulse cursor-pointer"
           >
             <ChefHat className="w-5 h-5 mb-0.5 text-amber-600" />
             <span className="text-[10px]">Cooking</span>

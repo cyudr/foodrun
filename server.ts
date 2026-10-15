@@ -36,6 +36,16 @@ app.all('/api/recipes/generate-custom', (req, res) => {
   return geminiHandler(req, res);
 });
 
+app.all('/api/recipes/reverse-engineer', (req, res) => {
+  req.body = { ...req.body, action: 'reverse-engineer' };
+  return geminiHandler(req, res);
+});
+
+app.all('/api/adjust-dish-photo', (req, res) => {
+  req.body = { ...req.body, action: 'adjust-dish-photo' };
+  return geminiHandler(req, res);
+});
+
 app.all('/api/tts', (req, res) => {
   req.body = { ...req.body, action: 'tts' };
   return geminiHandler(req, res);

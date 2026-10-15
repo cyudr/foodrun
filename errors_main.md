@@ -17,6 +17,8 @@ This document catalogs all technical issues, runtime bugs, and errors encountere
 | **ERR-07** | `git push origin main` rejected (Authentication Required) | Git CLI | Headless build container had no stored GitHub credentials or Personal Access Token | Executed authenticated push via HTTPS URL token: `https://<TOKEN>@github.com/cyudr/foodrun.git` |
 | **ERR-08** | Git URL parsing error (`https://<token>@https://github...`) | Git CLI | User provided URL containing duplicate `https://` protocol prefix | Sanitized remote URL to `https://<token>@github.com/cyudr/foodrun.git` and successfully pushed |
 | **ERR-09** | "Choose Photo" opens camera app instead of photo library | `CameraScanner.tsx` file input | `capture="environment"` attribute instructed mobile browsers (iOS/Android) to bypass photo picker and open camera hardware directly | Removed `capture="environment"` from file input, allowing system photo gallery selection |
+| **ERR-10** | Choose photo allows select photo but photo cannot be loaded for detection | `imageProcessor.ts` / `CameraScanner.tsx` | HEIC format from iPhones, memory overload on raw files, missing timeout/error handling | Implemented `processImageFile` with dynamic HEIC conversion via `heic2any`, canvas downsampling to 1280px, and timeout guards |
+| **ERR-11** | Dish photos static / need reverse-engineering recipe from photo | `dishPhotos.ts` / `api/gemini.ts` | Dish photos were hardcoded fallback loops; food dish photos lacked dedicated deconstruction | Built `resolveDishPhoto`, `adjustDishPhotoPresentation`, `ReverseEngineerModal`, `ChefProModal`, and `handleReverseEngineerRecipe` endpoint |
 
 ---
 
@@ -226,15 +228,51 @@ The underlying file input element was defined as:
 In the W3C HTML Media Capture standard, the presence of the `capture="environment"` attribute specifies that the user agent should directly invoke capture via the outward-facing camera device rather than opening the system file or photo chooser.
 
 #### Resolution:
-Removed the `capture="environment"` attribute from the file input:
+Removed the `capture="environment"` attribute and provided explicit image mime-types:
 ```html
 <input
   ref={fileInputRef}
   type="file"
-  accept="image/*"
+  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
   className="hidden"
   onChange={handleFileChange}
 />
 ```
 Now, clicking "Choose Photo" triggers the native system photo library and album picker as expected.
+
+---
+
+### ERR-10: Selected Photo Fails to Load for Detection (HEIC & Memory Stall)
+
+#### Symptom:
+Users were able to select an existing photo from their gallery/library, but the photo would not load for detection or would freeze with no visual feedback.
+
+#### Root Cause:
+1. **HEIC/HEIF Encoding**: Photos taken on Apple devices (iPhones/iPads) are saved in HEIC format by default. Native Web browsers (Chrome, Firefox, non-Safari or webviews) cannot directly decode HEIC blobs into `<canvas>` or `Image()` objects without conversion.
+2. **Memory Overload & Silent Promise Hang**: Large raw camera files (15MB - 30MB) passed to `FileReader.readAsDataURL` consumed excessive memory, and images without explicit `onerror` and timeout fallbacks stalled the execution pipeline indefinitely.
+3. **Empty Processor File**: During previous server error, `src/utils/imageProcessor.ts` was left empty (0 bytes), resulting in missing function definitions.
+
+#### Resolution:
+1. Created robust `src/utils/imageProcessor.ts` featuring:
+   - Dynamic conversion of HEIC/HEIF files via `heic2any`.
+   - Rapid blob URL handling using `URL.createObjectURL(file)`.
+   - Explicit `onload`, `onerror`, and 15-second timeout protections.
+   - Intelligent canvas downsampling (max dimension 1280px) to output high-quality, lightweight (~200KB) JPEG data URLs.
+2. Updated `CameraScanner.tsx` with immediate loading spinners, retake/clear buttons, and graceful error alerts.
+
+---
+
+### ERR-11: Reverse-Engineering & Dish Photo Dynamic Routing
+
+#### Symptom:
+Need to distinguish between raw pantry ingredient photos and finished plated dishes, deconstruct restaurant recipes with secrets, and adjust dish photography according to pantry ingredients.
+
+#### Root Cause:
+The API previously only supported basic raw ingredient listing and cycled through 6 hardcoded fallback images regardless of the actual recipe or pantry composition.
+
+#### Resolution:
+1. Enhanced `api/gemini.ts` with `handleReverseEngineerRecipe` and `handleAdjustDishPhoto`.
+2. Created `src/utils/dishPhotos.ts` providing an intelligent culinary photo registry matching recipes to styles like Rustic Bistro, Michelin Star Minimalist, and Cozy Homestyle.
+3. Implemented `ChefProModal.tsx`, `ReverseEngineerModal.tsx`, and `AdjustDishPhotoModal.tsx` for full premium feature experience.
+
 

@@ -11,8 +11,12 @@ import {
   ZoomOut,
   Sliders,
   Layers,
+  Crown,
+  Wand2,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
+import { processImageFile } from '../utils/imageProcessor';
 
 interface CameraScannerProps {
   onIngredientsDetected: (data: {
@@ -25,6 +29,10 @@ interface CameraScannerProps {
   setIsAnalyzing: (analyzing: boolean) => void;
   onViewPantry: () => void;
   pantryCount: number;
+  userIngredients?: string[];
+  isPro?: boolean;
+  onOpenProModal?: (feature?: string) => void;
+  onReverseEngineerCompleted?: (recipe: any) => void;
 }
 
 interface CameraDeviceInfo {
@@ -39,6 +47,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   setIsAnalyzing,
   onViewPantry,
   pantryCount,
+  userIngredients = [],
+  isPro = false,
+  onOpenProModal,
+  onReverseEngineerCompleted,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +60,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Scanner Mode: 'ingredients' (Pantry) vs 'reverse-engineer' (Chef Pro)
+  const [activeMode, setActiveMode] = useState<'ingredients' | 'reverse-engineer'>('ingredients');
+
+  // Prepared dish detection banner when a cooked meal is identified in ingredients mode
+  const [detectedPreparedDish, setDetectedPreparedDish] = useState<{
+    dishName: string;
+    dishCuisine?: string;
+    photoUrl: string;
+  } | null>(null);
 
   // Multi-camera devices list and selected main camera
   const [availableBackCameras, setAvailableBackCameras] = useState<CameraDeviceInfo[]>([]);
@@ -393,51 +415,84 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
     stopCamera();
     setPreviewImage(dataUrl);
-    analyzeImage(dataUrl);
+
+    if (activeMode === 'reverse-engineer') {
+      reverseEngineerImage(dataUrl);
+    } else {
+      analyzeImage(dataUrl);
+    }
   };
 
-  // Handle uploaded image file with auto-compression
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle uploaded image file with robust HEIC conversion, hardware decoding & scaling
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const originalDataUrl = event.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        let w = img.width;
-        let h = img.height;
-        const maxDim = 1280;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          } else {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.82);
-          setPreviewImage(compressed);
-          stopCamera();
-          analyzeImage(compressed);
-        } else {
-          setPreviewImage(originalDataUrl);
-          stopCamera();
-          analyzeImage(originalDataUrl);
-        }
+    setIsAnalyzing(true);
+    setStatusMessage(
+      activeMode === 'reverse-engineer'
+        ? 'Chef Pro AI is reading and preparing dish photograph...'
+        : 'Optimizing and loading selected photo...'
+    );
+
+    try {
+      // Robust processing: handles HEIC from iOS, canvas resize, and memory-safe compression
+      const processed = await processImageFile(file, 1280, 0.82);
+      setPreviewImage(processed);
+      stopCamera();
+
+      if (activeMode === 'reverse-engineer') {
+        await reverseEngineerImage(processed);
+      } else {
+        await analyzeImage(processed);
+      }
+    } catch (err: any) {
+      console.error('Photo reading error:', err);
+      alert(`Could not load selected photo: ${err?.message || 'Unsupported format'}. Please try another photo.`);
+      setIsAnalyzing(false);
+      setStatusMessage('');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // Reverse Engineer Food Recipe Based on Photo (Premium Feature)
+  const reverseEngineerImage = async (base64Image: string) => {
+    setIsAnalyzing(true);
+    setStatusMessage('Chef Pro AI is deconstructing secret sauces, seasonings & master recipe...');
+
+    try {
+      const payload = {
+        action: 'reverse-engineer',
+        imageBase64: base64Image,
+        mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        userIngredients: userIngredients || [],
       };
-      img.src = originalDataUrl;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+
+      const response = await fetch('/api/gemini.ts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server returned ${response.status}: Failed to reverse engineer recipe`);
+      }
+
+      const data = await response.json();
+      if (data.recipe && onReverseEngineerCompleted) {
+        onReverseEngineerCompleted(data.recipe);
+      } else {
+        throw new Error('No master recipe returned from analysis');
+      }
+    } catch (err: any) {
+      console.error('Reverse engineering error:', err);
+      alert(`Could not reverse engineer recipe: ${err?.message || 'Please try another photo'}`);
+    } finally {
+      setIsAnalyzing(false);
+      setStatusMessage('');
+    }
   };
 
   // Send photo to Gemini serverless endpoint via /api/gemini.ts
@@ -464,8 +519,27 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       }
 
       const data = await response.json();
+
+      // If Gemini detected that this is a cooked meal/plated dish, offer reverse engineering!
+      if (data.isPreparedDish && data.dishName) {
+        setDetectedPreparedDish({
+          dishName: data.dishName,
+          dishCuisine: data.dishCuisine,
+          photoUrl: base64Image,
+        });
+      } else {
+        setDetectedPreparedDish(null);
+      }
+
+      const items = data.ingredients || [];
+      if (items.length === 0) {
+        alert(
+          'Gemini could not clearly identify individual food items in this photo. Try taking a clearer photo closer to the ingredients, or tap one of the Quick Test Samples below!'
+        );
+      }
+
       onIngredientsDetected({
-        ingredients: data.ingredients || [],
+        ingredients: items,
         suggestedCuisines: data.suggestedCuisines,
         chefTip: data.chefTip,
         photoUrl: base64Image,
@@ -490,10 +564,21 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setPreviewImage(base64);
-        analyzeImage(base64);
+
+        if (sample.isCookedDish || activeMode === 'reverse-engineer') {
+          reverseEngineerImage(base64);
+        } else {
+          analyzeImage(base64);
+        }
       };
       reader.readAsDataURL(blob);
     } catch {
+      if (sample.isCookedDish || activeMode === 'reverse-engineer') {
+        setIsAnalyzing(false);
+        if (onOpenProModal) onOpenProModal('reverse-engineer');
+        return;
+      }
+
       const mockItems = sample.mockIngredients.map((name, i) => ({
         id: `mock-${Date.now()}-${i}`,
         name,
@@ -517,18 +602,78 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   return (
     <div className="w-full max-w-lg mx-auto pb-24">
+      {/* Scanner Mode Switcher (Scan Ingredients vs Reverse Recipe Chef Pro) */}
+      <div className="px-4 pt-3 pb-2">
+        <div className="bg-stone-200/90 p-1 rounded-2xl flex items-center max-w-sm mx-auto shadow-inner border border-stone-300">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('ingredients');
+              setPreviewImage(null);
+            }}
+            className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeMode === 'ingredients'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5 text-amber-600" />
+            <span>Scan Ingredients</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isPro && onOpenProModal) {
+                onOpenProModal('reverse-engineer');
+              }
+              setActiveMode('reverse-engineer');
+              setPreviewImage(null);
+            }}
+            className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeMode === 'reverse-engineer'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-extrabold shadow-sm'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-700" />
+            <span>Reverse Recipe</span>
+            <span className="text-[9px] bg-black/70 text-amber-300 px-1.5 py-0.2 rounded-full font-black uppercase">
+              Pro
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Top Title Banner */}
-      <div className="px-4 pt-3 pb-2 text-center">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          Deliciously spiced with Gemini
-        </span>
-        <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
-          Snap Your Ingredients
-        </h1>
-        <p className="text-stone-600 text-xs mt-1">
-          Connected to Main Wide Camera (1x). Pinch with 2 fingers to zoom in &amp; out.
-        </p>
+      <div className="px-4 pb-2 text-center">
+        {activeMode === 'reverse-engineer' ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+              <Crown className="w-3.5 h-3.5 text-amber-600" />
+              Chef Pro AI Recipe Reverse Engineering
+            </span>
+            <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
+              Reverse-Engineer Food Dish
+            </h1>
+            <p className="text-stone-600 text-xs mt-1">
+              Snap or upload any plated dish to deconstruct secret sauces, seasonings &amp; full recipe!
+            </p>
+          </>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              Deliciously spiced with Gemini
+            </span>
+            <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
+              Snap Your Ingredients
+            </h1>
+            <p className="text-stone-600 text-xs mt-1">
+              Connected to Main Wide Camera (1x). Pinch with 2 fingers to zoom in &amp; out.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Compact Viewfinder Region */}
@@ -676,22 +821,37 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             </>
           )}
 
-          {/* Preview of captured image */}
+          {/* Preview of captured/selected image */}
           {previewImage && (
             <div className="relative w-full h-full">
               <img
                 src={previewImage}
-                alt="Captured ingredients"
+                alt="Selected food photo"
                 className="w-full h-full object-cover"
               />
+
+              {!isAnalyzing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewImage(null);
+                    setDetectedPreparedDish(null);
+                  }}
+                  className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white text-xs font-bold backdrop-blur-md transition-all shadow-md cursor-pointer flex items-center gap-1.5 z-20 border border-white/20"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retake / Clear</span>
+                </button>
+              )}
+
               {isAnalyzing && (
-                <div className="absolute inset-0 bg-stone-950/75 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 bg-stone-950/75 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-20">
                   <div className="relative">
                     <div className="w-16 h-16 rounded-full border-4 border-amber-500/30 border-t-amber-500 animate-spin" />
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
                   <p className="text-white font-bold text-sm mt-4">
-                    Gemini AI Vision Analyzing...
+                    {activeMode === 'reverse-engineer' ? 'Chef Pro AI Deconstructing Dish...' : 'Gemini AI Vision Analyzing...'}
                   </p>
                   <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
                     {statusMessage}
@@ -706,8 +866,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             <div className="relative w-full h-full group overflow-hidden">
               {/* Default Culinary Food Photography */}
               <img
-                src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80"
-                alt="Fresh culinary ingredients standby"
+                src={
+                  activeMode === 'reverse-engineer'
+                    ? 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80'
+                    : 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80'
+                }
+                alt="Culinary preview"
                 className="w-full h-full object-cover filter brightness-[0.65] contrast-[1.05] transition-transform duration-500 group-hover:scale-105"
               />
 
@@ -732,13 +896,17 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     <span>Initialise Camera</span>
                   </button>
                   <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
-                    Tap to start live scanner &amp; zoom
+                    {activeMode === 'reverse-engineer'
+                      ? 'Tap to start live camera to snap cooked dish'
+                      : 'Tap to start live scanner & zoom'}
                   </p>
                 </div>
 
                 {/* Bottom hint */}
                 <div className="text-[10px] text-stone-300/80 font-medium">
-                  Main Wide Camera (1x) • AI Ingredient Detection
+                  {activeMode === 'reverse-engineer'
+                    ? 'Chef Pro Master Recipe & Sauce Deconstruction'
+                    : 'Main Wide Camera (1x) • AI Ingredient Detection'}
                 </div>
               </div>
             </div>
@@ -761,7 +929,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             <button
               onClick={stopCamera}
               type="button"
-              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors"
+              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -770,7 +938,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             <button
               onClick={capturePhoto}
               type="button"
-              className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 p-1 shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+              className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 p-1 shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
               title="Capture Photo"
             >
               <div className="w-13 h-13 rounded-full border-2 border-white flex items-center justify-center bg-white/20">
@@ -781,7 +949,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             <button
               onClick={toggleCameraFacing}
               type="button"
-              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl text-stone-300 text-xs font-medium hover:bg-stone-800 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Flip
@@ -793,7 +961,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               onClick={() => startCamera('environment')}
               disabled={isAnalyzing}
               type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
               Initialise Camera
@@ -803,7 +971,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               onClick={() => fileInputRef.current?.click()}
               disabled={isAnalyzing}
               type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
             >
               <ImageIcon className="w-4 h-4 text-amber-400" />
               Choose Photo
@@ -812,13 +980,50 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
               className="hidden"
               onChange={handleFileChange}
             />
           </div>
         )}
       </div>
+
+      {/* Prepared Dish Detected Banner */}
+      {detectedPreparedDish && !isAnalyzing && (
+        <div className="px-4 mt-4">
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-transparent border border-amber-500/40 flex items-center justify-between shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-stone-950 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                <Crown className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
+                  Cooked Dish Detected
+                </span>
+                <p className="text-stone-900 font-extrabold text-xs">
+                  {detectedPreparedDish.dishName}
+                </p>
+                <p className="text-stone-600 text-[11px]">
+                  Deconstruct secret sauces &amp; master steps?
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (!isPro && onOpenProModal) {
+                  onOpenProModal('reverse-engineer');
+                  return;
+                }
+                reverseEngineerImage(detectedPreparedDish.photoUrl);
+              }}
+              type="button"
+              className="px-3 py-2 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-stone-950 text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            >
+              Reverse Recipe →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pantry Status Banner */}
       {pantryCount > 0 && (

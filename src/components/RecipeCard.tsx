@@ -8,6 +8,7 @@ interface RecipeCardProps {
   onToggleFavorite: (recipe: Recipe) => void;
   onSelectRecipe: (recipe: Recipe) => void;
   onStartCooking: (recipe: Recipe) => void;
+  onAdjustPhoto?: (recipe: Recipe) => void;
 }
 
 export const RecipeCard: React.FC<RecipeCardProps> = ({
@@ -16,6 +17,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
   onToggleFavorite,
   onSelectRecipe,
   onStartCooking,
+  onAdjustPhoto,
 }) => {
   return (
     <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group">
@@ -37,7 +39,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
           }}
           type="button"
           aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-90 ${
+          className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all active:scale-90 cursor-pointer ${
             isFavorite
               ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
               : 'bg-black/40 text-white hover:bg-black/60'
@@ -46,12 +48,34 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
           <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
         </button>
 
+        {/* Adjust Photo Button */}
+        {onAdjustPhoto && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdjustPhoto(recipe);
+            }}
+            type="button"
+            className="absolute top-3 right-14 p-2.5 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all active:scale-90 cursor-pointer"
+            title="Adjust dish photo"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+          </button>
+        )}
+
         {/* Source Badge */}
         <div className="absolute top-3 left-3 flex items-center gap-1.5">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 text-stone-900 backdrop-blur-md shadow-xs flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-500" />
-            Gemini AI Chef
-          </span>
+          {recipe.isReverseEngineered ? (
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 backdrop-blur-md shadow-xs flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-stone-950" />
+              Chef Pro Reverse Recipe
+            </span>
+          ) : (
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 text-stone-900 backdrop-blur-md shadow-xs flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              Gemini AI Chef
+            </span>
+          )}
         </div>
 
         {/* Match Percentage Pill */}

@@ -13,6 +13,7 @@ interface RecipeListProps {
   onGenerateCustomRecipe: () => void;
   onBackToPantry: () => void;
   isLoadingCustomRecipe: boolean;
+  onAdjustPhoto?: (recipe: Recipe) => void;
 }
 
 export const RecipeList: React.FC<RecipeListProps> = ({
@@ -25,6 +26,7 @@ export const RecipeList: React.FC<RecipeListProps> = ({
   onGenerateCustomRecipe,
   onBackToPantry,
   isLoadingCustomRecipe,
+  onAdjustPhoto,
 }) => {
   const [filterQuery, setFilterQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string>('All');
@@ -169,6 +171,7 @@ export const RecipeList: React.FC<RecipeListProps> = ({
               onToggleFavorite={onToggleFavorite}
               onSelectRecipe={onSelectRecipe}
               onStartCooking={onStartCooking}
+              onAdjustPhoto={onAdjustPhoto}
             />
           ))
         )}

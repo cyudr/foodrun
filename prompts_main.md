@@ -145,3 +145,35 @@ This document chronologically collates all user prompts, feature requests, desig
   - Removed `capture="environment"` attribute from the file `<input type="file" accept="image/*">` in `CameraScanner.tsx`.
   - When clicking "Choose Photo" on mobile (iOS/Android) and desktop, the browser now invokes the system photo library / gallery file picker instead of forcefully hijacking the hardware camera capture app.
 
+---
+
+### Prompt 13: Robust Photo Loading, Recipe Reverse-Engineering & Dish Photo Adjustment
+- **User Request:**  
+  *1. The choose photo function is not working, it allows select photo but photo cannot be loaded for detection;  
+  2. Add a feature to reverse engineer food recipe based on photo;  
+  3. When recipe is generated (based on pantry ingredients), adjust the dish photo accordingly.*
+- **Key Deliverables:**
+  - **Robust Photo Loading & Decoding**: Built `src/utils/imageProcessor.ts` supporting iPhone HEIC/HEIF dynamic conversion, robust image decoding with timeout guards, and client-side canvas downsampling (max 1280px) to prevent payload crashes or silent decoding freezes.
+  - **Recipe Reverse-Engineering Engine**: Built serverless endpoint `/api/recipes/reverse-engineer` and `handleReverseEngineerRecipe` in `api/gemini.ts`. Deconstructs cooked meals and plated food into secret sauces, seasonings, cooking techniques, flavor radar, and restaurant-quality recipe steps.
+  - **Dynamic Dish Photo & Plating Resolver**: Built `src/utils/dishPhotos.ts` and `AdjustDishPhotoModal.tsx` mapping recipes to high-resolution culinary photography based on ingredients, cuisine, and plating styles (Rustic Bistro, Michelin Star Minimalist, Cozy Homestyle, Artisan Cafe).
+
+---
+
+### Prompt 14: Premium Tier for Reverse-Engineering (Chef Pro)
+- **User Request:**  
+  *The reverse engineer recipe feature is a premium feature*
+- **Key Deliverables:**
+  - Integrated **SnapChef Pro / Premium** tier architecture.
+  - Created `ChefProModal.tsx` showcasing exclusive culinary benefits: AI Dish Recipe Deconstruction, Dynamic Dish Photo Adjustments, and Voice Assistant.
+  - Added Mode Switcher on the Scanner ("Scan Ingredients" vs "Reverse Recipe - Pro"), with a 1-tap Free Demo Access Pass toggle for immediate testing.
+  - Placed Chef Pro status badge and Pro modal trigger in the header navigation TopBar.
+
+---
+
+### Prompt 15: Completion & GitHub Push
+- **User Request:**  
+  *Continue where you left off. Git push when done using git push https://<GITHUB_PAT>@https://github.com/cyudr/foodrun*
+- **Key Deliverables:**
+  - Verified full TypeScript compilation and zero build errors.
+  - Pushed all updated source code, utilities, components, and documentation to GitHub.
+

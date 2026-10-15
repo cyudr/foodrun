@@ -20,6 +20,7 @@ interface RecipeDetailModalProps {
   isFavorite: boolean;
   onToggleFavorite: (recipe: Recipe) => void;
   onStartCooking: (recipe: Recipe) => void;
+  onAdjustPhoto?: (recipe: Recipe) => void;
 }
 
 export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
@@ -29,6 +30,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   isFavorite,
   onToggleFavorite,
   onStartCooking,
+  onAdjustPhoto,
 }) => {
   const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
 
@@ -92,6 +94,22 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             <h1 className="text-xl font-extrabold leading-tight text-white">
               {recipe.title}
             </h1>
+
+            {onAdjustPhoto && (
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-stone-200 bg-black/60 px-2.5 py-1 rounded-lg backdrop-blur-xs border border-white/20 truncate">
+                  Style: {recipe.platingStyle || 'Culinary Standard'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onAdjustPhoto(recipe)}
+                  className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-stone-950" />
+                  <span>Adjust Dish Photo</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

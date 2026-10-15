@@ -22,6 +22,20 @@ export interface RecipeIngredient {
   isStaple?: boolean;
 }
 
+export interface DeconstructedComponent {
+  componentName: string;
+  description: string;
+  ingredients?: string[];
+}
+
+export interface FlavorProfile {
+  savory: number;
+  umami: number;
+  acidity: number;
+  sweetness: number;
+  richness: number;
+}
+
 export interface Recipe {
   id: string;
   title: string;
@@ -30,6 +44,10 @@ export interface Recipe {
   category: string;
   area: string;
   imageUrl: string;
+  originalPhotoUrl?: string;
+  dishVisualType?: string;
+  dishAppearance?: string;
+  platingStyle?: string;
   youtubeUrl?: string;
   tags?: string[];
   instructions?: string;
@@ -44,6 +62,10 @@ export interface Recipe {
   servings?: number;
   chefNotes?: string;
   isFavorite?: boolean;
+  isReverseEngineered?: boolean;
+  detectedTechniques?: string[];
+  flavorProfile?: FlavorProfile;
+  deconstructedComponents?: DeconstructedComponent[];
 }
 
 export interface ActiveTimer {
@@ -53,6 +75,16 @@ export interface ActiveTimer {
   remainingSeconds: number;
   isRunning: boolean;
   stepNumber?: number;
+}
+
+export interface ReverseEngineerResult {
+  recipe: Recipe;
+  dishName: string;
+  cuisine: string;
+  flavorProfile: FlavorProfile;
+  detectedTechniques: string[];
+  secretChefTip: string;
+  deconstructedComponents: DeconstructedComponent[];
 }
 
 export type AppTab = 'scanner' | 'pantry' | 'recipes' | 'favorites' | 'cooking';

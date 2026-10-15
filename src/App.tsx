@@ -11,6 +11,9 @@ import { RecipeDetailModal } from './components/RecipeDetailModal';
 import { VoiceCookingAssistant } from './components/VoiceCookingAssistant';
 import { FavoritesView } from './components/FavoritesView';
 import { TopBar, BottomTabBar } from './components/Navigation';
+import { ChefProModal } from './components/ChefProModal';
+import { ReverseEngineerModal } from './components/ReverseEngineerModal';
+import { AdjustDishPhotoModal } from './components/AdjustDishPhotoModal';
 import { Ingredient, Recipe, AppTab } from './types';
 
 export default function App() {
@@ -37,6 +40,25 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [activeCookingRecipe, setActiveCookingRecipe] = useState<Recipe | null>(null);
 
+  // Chef Pro / Premium tier state
+  const [isPro, setIsPro] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('snapchef_is_pro') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isProModalOpen, setIsProModalOpen] = useState(false);
+  const [proModalFeature, setProModalFeature] = useState<string>('reverse-engineer');
+
+  // Reverse Engineer Modal state
+  const [reverseEngineeredRecipe, setReverseEngineeredRecipe] = useState<Recipe | null>(null);
+  const [isReverseModalOpen, setIsReverseModalOpen] = useState(false);
+
+  // Adjust Dish Photo Modal state
+  const [adjustPhotoRecipe, setAdjustPhotoRecipe] = useState<Recipe | null>(null);
+  const [isAdjustPhotoModalOpen, setIsAdjustPhotoModalOpen] = useState(false);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSearchingRecipes, setIsSearchingRecipes] = useState(false);
   const [isLoadingCustomRecipe, setIsLoadingCustomRecipe] = useState(false);
@@ -61,6 +83,63 @@ export default function App() {
       // ignore
     }
   }, [favorites]);
+
+  const handleTogglePro = () => {
+    setIsPro((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('snapchef_is_pro', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const handleOpenProModal = (feature: string = 'reverse-engineer') => {
+    setProModalFeature(feature);
+    setIsProModalOpen(true);
+  };
+
+  // Reverse engineer recipe completed callback
+  const handleReverseEngineerCompleted = (recipe: Recipe) => {
+    setReverseEngineeredRecipe(recipe);
+    setIsReverseModalOpen(true);
+    setRecipes((prev) => {
+      if (prev.some((r) => r.id === recipe.id)) return prev;
+      return [recipe, ...prev];
+    });
+  };
+
+  // Open adjust photo modal
+  const handleOpenAdjustPhoto = (recipe: Recipe) => {
+    setAdjustPhotoRecipe(recipe);
+    setIsAdjustPhotoModalOpen(true);
+  };
+
+  // Apply adjusted photo
+  const handlePhotoAdjusted = (updatedRecipe: Recipe) => {
+    setRecipes((prev) => prev.map((r) => (r.id === updatedRecipe.id ? updatedRecipe : r)));
+    setFavorites((prev) => prev.map((f) => (f.id === updatedRecipe.id ? updatedRecipe : f)));
+    if (selectedRecipe && selectedRecipe.id === updatedRecipe.id) {
+      setSelectedRecipe(updatedRecipe);
+    }
+    if (reverseEngineeredRecipe && reverseEngineeredRecipe.id === updatedRecipe.id) {
+      setReverseEngineeredRecipe(updatedRecipe);
+    }
+    if (activeCookingRecipe && activeCookingRecipe.id === updatedRecipe.id) {
+      setActiveCookingRecipe(updatedRecipe);
+    }
+  };
+
+  // Add missing ingredients from reverse-engineered dish to pantry
+  const handleAddMissingToPantry = (missingNames: string[]) => {
+    if (!missingNames || missingNames.length === 0) return;
+    missingNames.forEach((name) => {
+      handleAddIngredient(name, 'Grocery');
+    });
+    alert(`Added ${missingNames.length} missing ingredients to your pantry list!`);
+  };
 
   // Handle ingredients detected by Gemini from photo
   const handleIngredientsDetected = (data: {
@@ -207,6 +286,7 @@ export default function App() {
   // Launch Voice Cooking Assistant
   const handleStartCooking = (recipe: Recipe) => {
     setSelectedRecipe(null);
+    setIsReverseModalOpen(false);
     setActiveCookingRecipe(recipe);
     setCurrentTab('cooking');
   };
@@ -219,6 +299,8 @@ export default function App() {
           currentTab={currentTab}
           pantryCount={ingredients.length}
           onGoToScanner={() => setCurrentTab('scanner')}
+          isPro={isPro}
+          onOpenProModal={() => handleOpenProModal('reverse-engineer')}
         />
       )}
 
@@ -232,6 +314,10 @@ export default function App() {
             setIsAnalyzing={setIsAnalyzing}
             onViewPantry={() => setCurrentTab('pantry')}
             pantryCount={ingredients.length}
+            userIngredients={ingredients.filter((i) => i.checked).map((i) => i.name)}
+            isPro={isPro}
+            onOpenProModal={handleOpenProModal}
+            onReverseEngineerCompleted={handleReverseEngineerCompleted}
           />
         )}
 
@@ -264,6 +350,7 @@ export default function App() {
             onGenerateCustomRecipe={handleGenerateCustomRecipe}
             onBackToPantry={() => setCurrentTab('pantry')}
             isLoadingCustomRecipe={isLoadingCustomRecipe}
+            onAdjustPhoto={handleOpenAdjustPhoto}
           />
         )}
 
@@ -301,6 +388,40 @@ export default function App() {
         isFavorite={selectedRecipe ? favorites.some((f) => f.id === selectedRecipe.id) : false}
         onToggleFavorite={handleToggleFavorite}
         onStartCooking={handleStartCooking}
+        onAdjustPhoto={handleOpenAdjustPhoto}
+      />
+
+      {/* Reverse Engineer Modal */}
+      <ReverseEngineerModal
+        recipe={reverseEngineeredRecipe}
+        isOpen={isReverseModalOpen}
+        onClose={() => setIsReverseModalOpen(false)}
+        isFavorite={reverseEngineeredRecipe ? favorites.some((f) => f.id === reverseEngineeredRecipe.id) : false}
+        onToggleFavorite={handleToggleFavorite}
+        onStartCooking={handleStartCooking}
+        onAddMissingToPantry={handleAddMissingToPantry}
+        onAdjustPhoto={handleOpenAdjustPhoto}
+      />
+
+      {/* Adjust Dish Photo Modal */}
+      <AdjustDishPhotoModal
+        recipe={adjustPhotoRecipe}
+        isOpen={isAdjustPhotoModalOpen}
+        onClose={() => {
+          setIsAdjustPhotoModalOpen(false);
+          setAdjustPhotoRecipe(null);
+        }}
+        onPhotoAdjusted={handlePhotoAdjusted}
+        userIngredients={ingredients.filter((i) => i.checked).map((i) => i.name)}
+      />
+
+      {/* Chef Pro / Premium Modal */}
+      <ChefProModal
+        isOpen={isProModalOpen}
+        onClose={() => setIsProModalOpen(false)}
+        isPro={isPro}
+        onTogglePro={handleTogglePro}
+        targetFeature={proModalFeature}
       />
 
       {/* Mobile Floating Bottom Tab Bar */}
