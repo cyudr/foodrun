@@ -4,13 +4,15 @@ import { GoogleGenAI, Type } from '@google/genai';
 export const geminiRouter = Router();
 
 // Dynamic initialization to pick up GEMINI_KEY (or GEMINI_API_KEY)
-function getGeminiClient(): GoogleGenAI {
+function getGeminiClient(): { ai: GoogleGenAI; keySource: string } {
   const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_KEY or GEMINI_API_KEY is not configured in environment variables');
   }
 
-  return new GoogleGenAI({
+  const keySource = process.env.GEMINI_KEY ? 'GEMINI_KEY' : 'GEMINI_API_KEY';
+
+  const ai = new GoogleGenAI({
     apiKey,
     httpOptions: {
       headers: {
@@ -18,6 +20,30 @@ function getGeminiClient(): GoogleGenAI {
       },
     },
   });
+
+  return { ai, keySource };
+}
+
+// Resilient generateContent helper that tries gemini-flash-latest first,
+// with graceful fallback to gemini-3.8-flash and gemini-3.1-flash-lite
+async function generateWithFallback(ai: GoogleGenAI, params: any) {
+  const models = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
+
+  for (const model of models) {
+    try {
+      const response = await ai.models.generateContent({
+        ...params,
+        model,
+      });
+      return response;
+    } catch (err: any) {
+      console.warn(`Model ${model} request failed, trying next fallback:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('All Gemini model fallbacks failed');
 }
 
 // Curated culinary food images for recipe presentations
@@ -30,6 +56,37 @@ const RECIPE_IMAGE_FALLBACKS = [
   'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=800&q=80',
 ];
 
+// Check Gemini Key Status
+export function handleKeyStatus(_req: Request, res: Response) {
+  try {
+    const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.json({
+        configured: false,
+        status: 'missing_key',
+        message: 'No GEMINI_KEY or GEMINI_API_KEY found in environment variables.',
+      });
+    }
+
+    const keySource = process.env.GEMINI_KEY ? 'GEMINI_KEY' : 'GEMINI_API_KEY';
+    const masked = apiKey.length > 8 ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : '****';
+
+    return res.json({
+      configured: true,
+      status: 'ready',
+      keySource,
+      maskedKey: masked,
+      message: 'Gemini AI connection is active and ready.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      configured: false,
+      status: 'error',
+      message: err?.message || 'Error checking Gemini key status',
+    });
+  }
+}
+
 // 1. Photo Analysis: Identify Ingredients
 export async function handleIdentify(req: Request, res: Response) {
   try {
@@ -39,11 +96,10 @@ export async function handleIdentify(req: Request, res: Response) {
       return res.status(400).json({ error: 'Image data is required' });
     }
 
-    const ai = getGeminiClient();
+    const { ai } = getGeminiClient();
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback(ai, {
       contents: {
         parts: [
           {
@@ -115,7 +171,7 @@ Return valid JSON according to the schema.`,
   } catch (error: any) {
     console.error('Error in handleIdentify:', error);
     return res.status(500).json({
-      error: error?.message || 'Failed to identify ingredients from image',
+      error: error?.message || 'Failed to analyze image with Gemini',
     });
   }
 }
@@ -129,7 +185,7 @@ export async function handleFindRecipes(req: Request, res: Response) {
       return res.status(400).json({ error: 'At least one ingredient is required' });
     }
 
-    const ai = getGeminiClient();
+    const { ai } = getGeminiClient();
 
     const prompt = `You are a world-class culinary chef. Generate 5 diverse, mouth-watering, realistic recipes that feature and make maximum use of these user-provided ingredients:
 ${ingredients.join(', ')}.
@@ -148,8 +204,7 @@ Instructions:
 
 Return pure JSON matching the schema.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -259,7 +314,7 @@ export async function handleCustomRecipe(req: Request, res: Response) {
       return res.status(400).json({ error: 'Ingredients list is required' });
     }
 
-    const ai = getGeminiClient();
+    const { ai } = getGeminiClient();
 
     const prompt = `You are an expert chef creating a single bespoke gourmet recipe using these ingredients:
 ${ingredients.join(', ')}.
@@ -276,8 +331,7 @@ Requirements:
 
 Return purely JSON matching the schema.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -361,7 +415,7 @@ export async function handleTts(req: Request, res: Response) {
       return res.status(400).json({ error: 'Text is required for TTS' });
     }
 
-    const ai = getGeminiClient();
+    const { ai } = getGeminiClient();
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash-lite-tts',
@@ -404,7 +458,14 @@ export async function handleTts(req: Request, res: Response) {
 
 // Universal Serverless Dispatcher for /api/gemini
 export async function handleGeminiServerless(req: Request, res: Response) {
+  if (req.method === 'GET') {
+    return handleKeyStatus(req, res);
+  }
+
   const action = req.body?.action;
+  if (action === 'status' || action === 'check-key') {
+    return handleKeyStatus(req, res);
+  }
   if (action === 'identify' || action === 'identify-ingredients' || req.body?.imageBase64) {
     return handleIdentify(req, res);
   }
@@ -424,7 +485,8 @@ export async function handleGeminiServerless(req: Request, res: Response) {
 }
 
 // Mount routes on router
-geminiRouter.post('/', handleGeminiServerless);
+geminiRouter.get('/status', handleKeyStatus);
+geminiRouter.all('/', handleGeminiServerless);
 geminiRouter.post('/identify', handleIdentify);
 geminiRouter.post('/identify-ingredients', handleIdentify);
 geminiRouter.post('/find-recipes', handleFindRecipes);

@@ -10,6 +10,8 @@ import {
   ZoomIn,
   ZoomOut,
   Sliders,
+  Key,
+  Layers,
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
 
@@ -24,6 +26,12 @@ interface CameraScannerProps {
   setIsAnalyzing: (analyzing: boolean) => void;
   onViewPantry: () => void;
   pantryCount: number;
+}
+
+interface CameraDeviceInfo {
+  deviceId: string;
+  label: string;
+  isMain: boolean;
 }
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({
@@ -42,12 +50,120 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
+  // Multi-camera devices list and selected main camera
+  const [availableBackCameras, setAvailableBackCameras] = useState<CameraDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [currentCameraLabel, setCurrentCameraLabel] = useState<string>('Main Camera');
+
+  // Gemini API Key Status
+  const [keyStatus, setKeyStatus] = useState<{
+    configured: boolean;
+    status: string;
+    message: string;
+    keySource?: string;
+    maskedKey?: string;
+  } | null>(null);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(false);
+
   // Camera Zoom state (1.0x to 4.0x)
   const [zoom, setZoom] = useState<number>(1.0);
   const [minZoom, setMinZoom] = useState<number>(1.0);
   const [maxZoom, setMaxZoom] = useState<number>(4.0);
   const [hasHardwareZoom, setHasHardwareZoom] = useState<boolean>(false);
   const [showZoomSlider, setShowZoomSlider] = useState<boolean>(false);
+  const [isPinching, setIsPinching] = useState<boolean>(false);
+
+  // Pinch-to-zoom tracking refs
+  const touchStartDistanceRef = useRef<number | null>(null);
+  const touchStartZoomRef = useRef<number>(1.0);
+
+  // Check Gemini Key Status on mount
+  const checkKeyStatus = async () => {
+    setIsCheckingKey(true);
+    try {
+      const res = await fetch('/api/gemini/status');
+      if (res.ok) {
+        const data = await res.json();
+        setKeyStatus(data);
+      } else {
+        setKeyStatus({
+          configured: false,
+          status: 'error',
+          message: 'Could not connect to Gemini backend.',
+        });
+      }
+    } catch {
+      setKeyStatus({
+        configured: false,
+        status: 'offline',
+        message: 'Could not reach server to verify Gemini key.',
+      });
+    } finally {
+      setIsCheckingKey(false);
+    }
+  };
+
+  useEffect(() => {
+    checkKeyStatus();
+  }, []);
+
+  // Helper to discover and prioritize the primary Main Wide Camera
+  const discoverCameras = async (): Promise<CameraDeviceInfo[]> => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+
+      // Separate back/rear cameras
+      const backCameras: CameraDeviceInfo[] = videoDevices
+        .filter((d) => {
+          const l = d.label.toLowerCase();
+          return (
+            l.includes('back') ||
+            l.includes('rear') ||
+            l.includes('environment') ||
+            l.includes('0') ||
+            l.includes('wide') ||
+            (!l.includes('front') && !l.includes('user') && !l.includes('selfie'))
+          );
+        })
+        .map((d) => {
+          const l = d.label.toLowerCase();
+          // Detect if this is the main 1x wide camera vs telephoto/macro/virtual
+          const isTelephotoOrMacro =
+            l.includes('telephoto') ||
+            l.includes('macro') ||
+            l.includes('depth') ||
+            l.includes('virtual') ||
+            l.includes('zoom');
+          const isMain =
+            !isTelephotoOrMacro &&
+            (l.includes('0') ||
+              l.includes('main') ||
+              l.includes('wide') ||
+              l.includes('primary') ||
+              l.includes('standard'));
+
+          let cleanLabel = d.label || 'Back Camera';
+          if (isMain) cleanLabel = 'Main Wide (1x)';
+          else if (l.includes('ultra')) cleanLabel = 'Ultra Wide (0.5x)';
+          else if (l.includes('tele')) cleanLabel = 'Telephoto';
+
+          return {
+            deviceId: d.deviceId,
+            label: cleanLabel,
+            isMain,
+          };
+        });
+
+      // Sort so main camera is always first
+      backCameras.sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0));
+      setAvailableBackCameras(backCameras);
+      return backCameras;
+    } catch (err) {
+      console.warn('Could not enumerate cameras:', err);
+      return [];
+    }
+  };
 
   // Apply zoom to MediaStreamTrack (hardware) and state (digital fallback)
   const applyZoom = async (targetZoom: number, activeStream?: MediaStream | null) => {
@@ -66,41 +182,118 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             });
             setHasHardwareZoom(true);
           }
-        } catch (e) {
-          // Hardware zoom constraint failed, digital fallback handles it smoothly
+        } catch {
+          // Digital fallback handles magnification
         }
       }
     }
   };
 
-  // Start video stream
-  const startCamera = async (mode: 'environment' | 'user' = facingMode) => {
+  // Two-Finger Pinch-to-Zoom Gesture Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartDistanceRef.current = dist;
+      touchStartZoomRef.current = zoom;
+      setIsPinching(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDistanceRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scaleFactor = dist / touchStartDistanceRef.current;
+      const targetZoom = Math.min(
+        Math.max(touchStartZoomRef.current * scaleFactor, minZoom),
+        maxZoom
+      );
+      applyZoom(parseFloat(targetZoom.toFixed(1)));
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      touchStartDistanceRef.current = null;
+      setIsPinching(false);
+    }
+  };
+
+  // Start video stream targeting the MAIN camera
+  const startCamera = async (
+    mode: 'environment' | 'user' = facingMode,
+    targetDeviceId?: string
+  ) => {
     setCameraError(null);
     try {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
 
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: mode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
+      // First enumerate devices if in environment mode and no deviceId provided
+      let chosenDeviceId = targetDeviceId || selectedCameraId;
+      if (mode === 'environment' && !chosenDeviceId) {
+        const foundCameras = await discoverCameras();
+        if (foundCameras.length > 0) {
+          // Select the primary main camera (index 0 after sorting)
+          chosenDeviceId = foundCameras[0].deviceId;
+          setSelectedCameraId(chosenDeviceId);
+          setCurrentCameraLabel(foundCameras[0].label);
+        }
+      }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Configure video constraints with standard 3:4 mobile portrait aspect ratio
+      const videoConstraints: MediaTrackConstraints = chosenDeviceId
+        ? {
+            deviceId: { exact: chosenDeviceId },
+            aspectRatio: { ideal: 0.75 }, // Standard 3:4 mobile photo aspect
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+          }
+        : {
+            facingMode: { ideal: mode },
+            aspectRatio: { ideal: 0.75 },
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+          };
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false,
+      });
+
       setStream(mediaStream);
 
-      // Inspect hardware zoom capability if supported by browser/device
+      // Inspect hardware zoom capability and explicitly reset to 1.0x (unzoomed main view)
       const track = mediaStream.getVideoTracks()[0];
-      if (track && track.getCapabilities) {
-        const capabilities = track.getCapabilities() as any;
-        if (capabilities && capabilities.zoom) {
-          setMinZoom(capabilities.zoom.min || 1.0);
-          setMaxZoom(capabilities.zoom.max || 4.0);
-          setHasHardwareZoom(true);
+      if (track) {
+        if (track.label) {
+          setCurrentCameraLabel(track.label.includes('front') ? 'Front Camera' : 'Main Camera (1x)');
+        }
+
+        if (track.getCapabilities) {
+          const capabilities = track.getCapabilities() as any;
+          if (capabilities && capabilities.zoom) {
+            const minZ = capabilities.zoom.min || 1.0;
+            const maxZ = capabilities.zoom.max || 4.0;
+            setMinZoom(minZ);
+            setMaxZoom(maxZ);
+            setHasHardwareZoom(true);
+
+            // Force native track to minimum 1.0x wide lens
+            try {
+              await (track as any).applyConstraints({
+                advanced: [{ zoom: minZ }],
+              });
+            } catch {
+              // ignore
+            }
+          }
         }
       }
 
@@ -108,13 +301,35 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
       }
+
       setCameraActive(true);
       setFacingMode(mode);
       setZoom(1.0);
+
+      // Re-enumerate to capture populated labels now that permission is granted
+      discoverCameras();
     } catch (err: any) {
       console.warn('Camera access error:', err);
-      setCameraError('Camera access was not granted or not available. You can upload a photo or use a sample.');
-      setCameraActive(false);
+      // Fallback: try basic environment request
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        });
+        setStream(fallbackStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          await videoRef.current.play();
+        }
+        setCameraActive(true);
+        setFacingMode(mode);
+        setZoom(1.0);
+      } catch (fallbackErr: any) {
+        setCameraError(
+          'Camera access was not granted or not available. You can upload a photo or use a sample.'
+        );
+        setCameraActive(false);
+      }
     }
   };
 
@@ -135,7 +350,15 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   const toggleCameraFacing = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setSelectedCameraId('');
     startCamera(nextMode);
+  };
+
+  // Switch between back lenses (e.g. Main 1x vs Ultra Wide)
+  const handleSwitchLens = (deviceId: string, label: string) => {
+    setSelectedCameraId(deviceId);
+    setCurrentCameraLabel(label);
+    startCamera('environment', deviceId);
   };
 
   // Capture frame from video stream with active zoom applied
@@ -144,8 +367,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    const width = video.videoWidth || 640;
-    const height = video.videoHeight || 480;
+    const width = video.videoWidth || 720;
+    const height = video.videoHeight || 960;
 
     canvas.width = width;
     canvas.height = height;
@@ -154,10 +377,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     if (!ctx) return;
 
     if (hasHardwareZoom) {
-      // Hardware camera handled magnification natively
       ctx.drawImage(video, 0, 0, width, height);
     } else if (zoom > 1.0) {
-      // Digital zoom: crop centered magnified frame into canvas
+      // Digital zoom: crop centered frame into canvas
       const cropW = width / zoom;
       const cropH = height / zoom;
       const cropX = (width - cropW) / 2;
@@ -190,16 +412,17 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     e.target.value = '';
   };
 
-  // Send photo to Gemini server endpoint
+  // Send photo to Gemini serverless endpoint via /api/gemini
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
     setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
 
     try {
-      const response = await fetch('/api/gemini/identify-ingredients', {
+      const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'identify',
           imageBase64: base64Image,
           mimeType: 'image/jpeg',
         }),
@@ -207,7 +430,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to analyze image with Gemini');
+        throw new Error(errorData.error || `Server returned ${response.status}: Failed to analyze image with Gemini`);
       }
 
       const data = await response.json();
@@ -264,8 +487,38 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   return (
     <div className="w-full max-w-lg mx-auto pb-24">
-      {/* Top Banner */}
-      <div className="px-4 pt-3 pb-2 text-center">
+      {/* Gemini Key Status at the Start */}
+      <div className="px-4 pt-3 pb-1">
+        {keyStatus?.configured ? (
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] shadow-xs">
+            <div className="flex items-center gap-1.5 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Gemini AI: Connected &amp; Ready
+            </div>
+            <span className="text-[10px] text-emerald-700 font-mono">
+              {keyStatus.keySource}
+            </span>
+          </div>
+        ) : keyStatus && !keyStatus.configured ? (
+          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{keyStatus.message || 'Gemini Key not detected in environment.'}</span>
+            </div>
+            <button
+              onClick={checkKeyStatus}
+              disabled={isCheckingKey}
+              type="button"
+              className="px-2 py-1 rounded-lg bg-amber-200 text-amber-900 font-bold text-[10px] hover:bg-amber-300"
+            >
+              {isCheckingKey ? 'Checking...' : 'Recheck'}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Top Title Banner */}
+      <div className="px-4 pt-2 pb-2 text-center">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
           <Sparkles className="w-3.5 h-3.5 text-amber-600" />
           Gemini AI Food Vision
@@ -274,18 +527,23 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           Snap Your Ingredients
         </h1>
         <p className="text-stone-600 text-xs mt-1">
-          Take a photo of your fridge, countertop, or pantry with zoom to auto-detect what you have.
+          Connected to Main Wide Camera (1x). Pinch with 2 fingers to zoom in &amp; out.
         </p>
       </div>
 
-      {/* Main Viewfinder Area */}
+      {/* Main Viewfinder with 3:4 Mobile Aspect Ratio to prevent distortion */}
       <div className="px-4 mt-2">
-        <div className="relative aspect-4/3 w-full bg-stone-900 rounded-3xl overflow-hidden shadow-xl border border-stone-800 flex flex-col items-center justify-center">
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="relative aspect-3/4 w-full max-h-[65vh] bg-stone-950 rounded-3xl overflow-hidden shadow-2xl border border-stone-800 flex flex-col items-center justify-center select-none touch-none"
+        >
           {/* Live Camera View */}
           {cameraActive ? (
             <>
               {/* Scaled Video for Digital Zoom Preview */}
-              <div className="w-full h-full overflow-hidden flex items-center justify-center">
+              <div className="w-full h-full overflow-hidden flex items-center justify-center bg-black">
                 <video
                   ref={videoRef}
                   playsInline
@@ -293,29 +551,65 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   style={{
                     transform: !hasHardwareZoom && zoom > 1.0 ? `scale(${zoom})` : 'none',
                     transformOrigin: 'center center',
-                    transition: 'transform 0.15s ease-out',
+                    transition: isPinching ? 'none' : 'transform 0.15s ease-out',
                   }}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover pointer-events-none"
                 />
               </div>
 
-              {/* Viewfinder Overlay Targeting Rectangles */}
-              <div className="absolute inset-8 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none flex items-center justify-center">
-                <div className="w-12 h-12 border-t-2 border-l-2 border-amber-400 absolute top-0 left-0 rounded-tl-lg" />
-                <div className="w-12 h-12 border-t-2 border-r-2 border-amber-400 absolute top-0 right-0 rounded-tr-lg" />
-                <div className="w-12 h-12 border-b-2 border-l-2 border-amber-400 absolute bottom-0 left-0 rounded-bl-lg" />
-                <div className="w-12 h-12 border-b-2 border-r-2 border-amber-400 absolute bottom-0 right-0 rounded-br-lg" />
+              {/* Viewfinder Overlay Targeting Frame */}
+              <div className="absolute inset-6 border border-white/30 rounded-2xl pointer-events-none flex items-center justify-center">
+                <div className="w-8 h-8 border-t-2 border-l-2 border-amber-400 absolute top-0 left-0 rounded-tl-lg" />
+                <div className="w-8 h-8 border-t-2 border-r-2 border-amber-400 absolute top-0 right-0 rounded-tr-lg" />
+                <div className="w-8 h-8 border-b-2 border-l-2 border-amber-400 absolute bottom-0 left-0 rounded-bl-lg" />
+                <div className="w-8 h-8 border-b-2 border-r-2 border-amber-400 absolute bottom-0 right-0 rounded-br-lg" />
 
-                {/* Active Zoom Badge Indicator */}
-                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                {/* Main Camera Indicator Badge */}
+                <div className="absolute top-2 left-2 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-md">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {currentCameraLabel}
+                </div>
+
+                {/* Active Zoom Badge */}
+                <div className="absolute top-2 right-2 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white border border-white/20 flex items-center gap-1 shadow-md">
                   <ZoomIn className="w-3 h-3 text-amber-400" />
                   {zoom.toFixed(1)}x
                 </div>
               </div>
 
+              {/* Dynamic Pinch Indicator Overlay */}
+              {isPinching && (
+                <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                  <div className="bg-black/85 backdrop-blur-md px-4 py-2 rounded-2xl border border-amber-500/50 text-amber-400 font-mono font-extrabold text-lg flex items-center gap-2 shadow-2xl animate-pulse">
+                    <ZoomIn className="w-5 h-5 text-amber-400" />
+                    {zoom.toFixed(1)}x Zoom
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-Lens Selector Pill (if multiple back cameras exist) */}
+              {availableBackCameras.length > 1 && (
+                <div className="absolute top-12 left-4 z-10 flex gap-1 bg-black/60 backdrop-blur-md p-1 rounded-full border border-white/20">
+                  {availableBackCameras.slice(0, 3).map((cam) => (
+                    <button
+                      key={cam.deviceId}
+                      type="button"
+                      onClick={() => handleSwitchLens(cam.deviceId, cam.label)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                        selectedCameraId === cam.deviceId
+                          ? 'bg-amber-500 text-stone-950'
+                          : 'text-white/80 hover:text-white'
+                      }`}
+                    >
+                      {cam.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Floating Camera Zoom Controls Bar (1x, 1.5x, 2x, 3x) */}
               <div className="absolute bottom-3 inset-x-4 flex items-center justify-center gap-1.5 z-10">
-                <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
+                <div className="bg-black/70 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
                   {zoomPresets.map((preset) => (
                     <button
                       key={preset}
@@ -347,7 +641,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
               {/* Continuous Zoom Slider when toggled */}
               {showZoomSlider && (
-                <div className="absolute bottom-14 inset-x-8 bg-black/75 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center gap-2.5 z-10 animate-fade-in shadow-xl">
+                <div className="absolute bottom-14 inset-x-8 bg-black/85 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center gap-2.5 z-10 animate-fade-in shadow-xl">
                   <ZoomOut className="w-3.5 h-3.5 text-white/70" />
                   <input
                     type="range"
@@ -370,7 +664,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 onClick={toggleCameraFacing}
                 type="button"
                 className="absolute top-3 right-3 p-2.5 rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-all active:scale-95"
-                title="Switch Camera"
+                title="Switch Camera (Front/Back)"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
@@ -384,12 +678,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 className="w-full h-full object-cover"
               />
               {isAnalyzing && (
-                <div className="absolute inset-0 bg-stone-950/70 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 bg-stone-950/75 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center">
                   <div className="relative">
                     <div className="w-16 h-16 rounded-full border-4 border-amber-500/30 border-t-amber-500 animate-spin" />
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
-                  <p className="text-white font-semibold text-sm mt-4">
+                  <p className="text-white font-bold text-sm mt-4">
                     Gemini AI Vision Analyzing...
                   </p>
                   <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
@@ -404,9 +698,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               <div className="w-16 h-16 rounded-2xl bg-stone-800/80 flex items-center justify-center text-amber-400 mb-3 shadow-inner">
                 <Camera className="w-8 h-8" />
               </div>
-              <h3 className="text-white font-semibold text-base">Camera Ready with Zoom</h3>
+              <h3 className="text-white font-bold text-base">Main Camera Ready</h3>
               <p className="text-stone-400 text-xs mt-1 max-w-xs">
-                Tap "Open Camera" to use 1x–4x zoom, or upload a photo of your food ingredients.
+                Tap "Open Camera" to use wide 1x main lens with pinch-to-zoom, or upload a photo.
               </p>
             </div>
           )}
@@ -561,7 +855,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       {/* Privacy and Camera Tip */}
       <div className="px-6 mt-6 flex items-center justify-center gap-2 text-stone-600 text-[11px] text-center">
         <ShieldCheck className="w-3.5 h-3.5 text-stone-600" />
-        <span>Images are processed directly by Gemini AI for ingredient recognition.</span>
+        <span>Main wide camera connected. Images are processed directly by Gemini AI.</span>
       </div>
     </div>
   );
