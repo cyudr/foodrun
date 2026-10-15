@@ -813,7 +813,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={handleFileChange}
             />

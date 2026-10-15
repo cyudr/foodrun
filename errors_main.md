@@ -16,6 +16,7 @@ This document catalogs all technical issues, runtime bugs, and errors encountere
 | **ERR-06** | Camera starting automatically on tab view | Scanner lifecycle | `autoStart={true}` prop triggered `getUserMedia` unconditionally on mount | Removed autoStart effect; camera now strictly initializes only upon clicking "Initialise Camera" |
 | **ERR-07** | `git push origin main` rejected (Authentication Required) | Git CLI | Headless build container had no stored GitHub credentials or Personal Access Token | Executed authenticated push via HTTPS URL token: `https://<TOKEN>@github.com/cyudr/foodrun.git` |
 | **ERR-08** | Git URL parsing error (`https://<token>@https://github...`) | Git CLI | User provided URL containing duplicate `https://` protocol prefix | Sanitized remote URL to `https://<token>@github.com/cyudr/foodrun.git` and successfully pushed |
+| **ERR-09** | "Choose Photo" opens camera app instead of photo library | `CameraScanner.tsx` file input | `capture="environment"` attribute instructed mobile browsers (iOS/Android) to bypass photo picker and open camera hardware directly | Removed `capture="environment"` from file input, allowing system photo gallery selection |
 
 ---
 
@@ -202,3 +203,38 @@ Pushed using HTTPS authentication with the user-provided Personal Access Token:
 git push https://<GITHUB_PAT>@github.com/cyudr/foodrun.git main
 ```
 Result: All commits successfully synchronized with GitHub `origin/main`.
+
+---
+
+### ERR-09: "Choose Photo" Opens Camera App Instead of Photos
+
+#### Symptom:
+When clicking the "Choose Photo" button on mobile devices (iOS Safari, Android Chrome), the browser immediately opened the device's camera app/viewfinder rather than presenting the user's photo gallery, camera roll, or photo library.
+
+#### Root Cause:
+The underlying file input element was defined as:
+```html
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  capture="environment"
+  className="hidden"
+  onChange={handleFileChange}
+/>
+```
+In the W3C HTML Media Capture standard, the presence of the `capture="environment"` attribute specifies that the user agent should directly invoke capture via the outward-facing camera device rather than opening the system file or photo chooser.
+
+#### Resolution:
+Removed the `capture="environment"` attribute from the file input:
+```html
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  className="hidden"
+  onChange={handleFileChange}
+/>
+```
+Now, clicking "Choose Photo" triggers the native system photo library and album picker as expected.
+

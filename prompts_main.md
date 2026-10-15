@@ -19,6 +19,7 @@ This document chronologically collates all user prompts, feature requests, desig
 | **9** | "git push https://<GITHUB_PAT>@https://github.com/cyudr/foodrun" | Authenticated Git Push to GitHub | Completed |
 | **10** | "1. collate and store as prompts_main.md; 2. collate all the errors and respective fixes and store as errors_main.md" | Documentation & System History | Completed |
 | **11** | "1. only initialise the camera when i hit initialise camera" | User-Controlled Camera Lifecycle | Completed |
+| **12** | "The choose photo opens up camera app instead of going to photos, fix it" | File Picker & Photo Library Access | Completed |
 
 ---
 
@@ -134,3 +135,13 @@ This document chronologically collates all user prompts, feature requests, desig
   - Disabled all automated camera startup effects (`autoStart` removed from `App.tsx` and `CameraScanner.tsx`).
   - Ensured hardware camera device access (`navigator.mediaDevices.getUserMedia`) is solely invoked when the user explicitly taps "Initialise Camera".
   - Maintained standby graphic and photo upload picker in an idle, battery-friendly state until explicitly engaged.
+
+---
+
+### Prompt 12: Photo Library Selection Fix
+- **User Request:**  
+  *The choose photo opens up camera app instead of going to photos, fix it*
+- **Key Deliverables:**
+  - Removed `capture="environment"` attribute from the file `<input type="file" accept="image/*">` in `CameraScanner.tsx`.
+  - When clicking "Choose Photo" on mobile (iOS/Android) and desktop, the browser now invokes the system photo library / gallery file picker instead of forcefully hijacking the hardware camera capture app.
+
