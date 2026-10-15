@@ -68,7 +68,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
           {recipe.isReverseEngineered ? (
             <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 backdrop-blur-md shadow-xs flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-stone-950" />
-              Chef Pro Reverse Recipe
+              Chef Recreated Recipe
             </span>
           ) : (
             <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 text-stone-900 backdrop-blur-md shadow-xs flex items-center gap-1">

@@ -64,6 +64,7 @@ export interface Recipe {
   isFavorite?: boolean;
   isReverseEngineered?: boolean;
   detectedTechniques?: string[];
+  cookingWares?: string[];
   flavorProfile?: FlavorProfile;
   deconstructedComponents?: DeconstructedComponent[];
 }

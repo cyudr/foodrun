@@ -10,8 +10,11 @@ import {
   AlertCircle,
   Sparkles,
   ExternalLink,
+  CookingPot,
+  Utensils,
 } from 'lucide-react';
 import { Recipe } from '../types';
+import { SupportedLanguage, t } from '../utils/i18n';
 
 interface RecipeDetailModalProps {
   recipe: Recipe | null;
@@ -21,6 +24,7 @@ interface RecipeDetailModalProps {
   onToggleFavorite: (recipe: Recipe) => void;
   onStartCooking: (recipe: Recipe) => void;
   onAdjustPhoto?: (recipe: Recipe) => void;
+  currentLanguage?: SupportedLanguage;
 }
 
 export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
@@ -31,6 +35,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   onToggleFavorite,
   onStartCooking,
   onAdjustPhoto,
+  currentLanguage = 'en',
 }) => {
   const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
 
@@ -137,6 +142,31 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               </p>
             </div>
           </div>
+
+          {/* Cooking Wares Needed */}
+          {recipe.cookingWares && recipe.cookingWares.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80 shadow-xs">
+              <div className="flex items-center gap-1.5 mb-2 text-stone-900">
+                <div className="p-1 rounded-lg bg-amber-500/20 text-amber-700">
+                  <CookingPot className="w-3.5 h-3.5 stroke-[2.2]" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-stone-800">
+                  {t('cookingWaresNeeded', currentLanguage)} ({recipe.cookingWares.length})
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {recipe.cookingWares.map((ware, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-stone-800 border border-amber-200/80 text-xs font-semibold shadow-2xs"
+                  >
+                    <Utensils className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span>{ware}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Ingredients Section */}
           <div>

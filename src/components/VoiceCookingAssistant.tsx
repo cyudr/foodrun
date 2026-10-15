@@ -19,6 +19,7 @@ import {
   Plus,
   Globe,
   ChevronDown,
+  CookingPot,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Recipe, RecipeStep, ActiveTimer } from '../types';
@@ -403,6 +404,26 @@ export const VoiceCookingAssistant: React.FC<VoiceCookingAssistantProps> = ({
               <Sparkles className="w-3.5 h-3.5" />
               <span>{prompts.stepPrefix(currentStep.stepNumber)}</span>
             </div>
+
+            {/* Cooking Wares Preview on Step 1 */}
+            {recipe.cookingWares && recipe.cookingWares.length > 0 && currentStepIndex === 0 && (
+              <div className="w-full max-w-sm mx-auto p-3 rounded-2xl bg-stone-900/90 border border-stone-800 text-left shadow-sm">
+                <div className="flex items-center gap-1.5 text-amber-400 text-[11px] font-bold uppercase tracking-wider mb-1.5">
+                  <CookingPot className="w-3.5 h-3.5 shrink-0" />
+                  <span>{t('cookingWaresNeeded', currentLanguage)}:</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {recipe.cookingWares.map((ware, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-lg bg-stone-800 text-stone-200 text-[11px] font-medium border border-stone-700"
+                    >
+                      {ware}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Step Instruction */}
             <h2 className="text-xl sm:text-2xl font-extrabold text-white leading-relaxed tracking-tight px-1 font-sans">

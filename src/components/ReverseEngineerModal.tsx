@@ -13,8 +13,11 @@ import {
   Heart,
   PlusCircle,
   Lightbulb,
+  CookingPot,
+  Utensils,
 } from 'lucide-react';
 import { Recipe } from '../types';
+import { SupportedLanguage, t } from '../utils/i18n';
 
 interface ReverseEngineerModalProps {
   recipe: Recipe | null;
@@ -25,6 +28,7 @@ interface ReverseEngineerModalProps {
   onStartCooking: (recipe: Recipe) => void;
   onAddMissingToPantry?: (ingredients: string[]) => void;
   onAdjustPhoto?: (recipe: Recipe) => void;
+  currentLanguage?: SupportedLanguage;
 }
 
 export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
@@ -36,6 +40,7 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
   onStartCooking,
   onAddMissingToPantry,
   onAdjustPhoto,
+  currentLanguage = 'en',
 }) => {
   if (!isOpen || !recipe) return null;
 
@@ -152,7 +157,7 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
             <div className="p-4 rounded-2xl bg-stone-800/70 border border-stone-700">
               <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-amber-400" />
-                Deconstructed Flavor Radar
+                <span>{t('flavorRadar', currentLanguage)}</span>
               </h3>
               <div className="grid grid-cols-5 gap-2 text-center">
                 {Object.entries(recipe.flavorProfile).map(([key, val]) => (
@@ -175,16 +180,39 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
             </div>
           )}
 
-          {/* Chef Deconstruction Notes & Secret Sauce */}
+          {/* Chef Notes & Secret Recipe Sauce */}
           {recipe.chefNotes && (
             <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 to-stone-900 border border-amber-600/30">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider mb-1.5">
                 <Lightbulb className="w-4 h-4" />
-                <span>Executive Chef Deconstruction &amp; Secrets</span>
+                <span>Executive Chef Insights &amp; Secret Recipe</span>
               </div>
               <p className="text-stone-300 text-xs leading-relaxed">
                 {recipe.chefNotes}
               </p>
+            </div>
+          )}
+
+          {/* Cooking Wares Needed */}
+          {recipe.cookingWares && recipe.cookingWares.length > 0 && (
+            <div className="p-4 rounded-2xl bg-stone-800/80 border border-stone-700/80">
+              <div className="flex items-center gap-2 mb-2.5 text-amber-400">
+                <CookingPot className="w-4 h-4 stroke-[2.2]" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-stone-200">
+                  {t('cookingWaresNeeded', currentLanguage)} ({recipe.cookingWares.length})
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {recipe.cookingWares.map((ware, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 text-stone-200 border border-stone-700 text-xs font-medium shadow-xs"
+                  >
+                    <Utensils className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>{ware}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -207,11 +235,11 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
             </div>
           )}
 
-          {/* Deconstructed Ingredients */}
+          {/* Recreated Ingredients */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider">
-                Deconstructed Ingredients ({recipe.ingredients.length})
+                Recreated Recipe Ingredients ({recipe.ingredients.length})
               </h3>
               {missingIngredients.length > 0 && onAddMissingToPantry && (
                 <button

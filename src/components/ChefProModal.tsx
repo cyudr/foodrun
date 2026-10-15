@@ -127,13 +127,13 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent border border-amber-500/30">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">
                 <Wand2 className="w-3.5 h-3.5" />
-                <span>Premium Feature</span>
+                <span>Chef Pro Feature</span>
               </div>
               <h3 className="font-extrabold text-sm text-stone-100">
-                Reverse-Engineer Food Recipe from Photo
+                Recreate Any Dish from Photo
               </h3>
               <p className="text-stone-300 text-xs mt-1 leading-relaxed">
-                Snap any plated meal or dish at a restaurant. Gemini deconstructs hidden seasonings, secret sauces, pantry matches, and builds a restaurant-quality recipe.
+                Snap or upload any restaurant dish or home cooked meal. Gemini unlocks the chef's secret seasonings, master sauces, pantry matches, and builds a restaurant-quality recipe so you can cook it yourself!
               </p>
             </div>
           )}
@@ -225,10 +225,10 @@ export const ChefProModal: React.FC<ChefProModalProps> = ({
               </div>
               <div>
                 <p className="text-xs font-bold text-stone-200">
-                  AI Dish Recipe Deconstruction
+                  AI Dish &amp; Recipe Recreation
                 </p>
                 <p className="text-[11px] text-stone-400">
-                  Reverse-engineer recipes, sauces &amp; seasonings from any food photo.
+                  Recreate master recipes, secret sauces &amp; seasonings from any food photo.
                 </p>
               </div>
             </div>

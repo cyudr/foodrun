@@ -856,7 +856,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
                   <p className="text-white font-bold text-sm mt-4">
-                    {activeMode === 'reverse-engineer' ? 'Chef Pro AI Deconstructing Dish...' : 'Gemini AI Vision Analyzing...'}
+                    {activeMode === 'reverse-engineer' ? 'Chef AI Unlocking Master Recipe...' : 'Gemini AI Vision Analyzing...'}
                   </p>
                   <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
                     {statusMessage}
@@ -902,7 +902,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   </button>
                   <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
                     {activeMode === 'reverse-engineer'
-                      ? 'Tap to start live camera to snap cooked dish'
+                      ? 'Tap to snap cooked meal & unlock recipe'
                       : 'Tap to start live scanner & zoom'}
                   </p>
                 </div>
@@ -910,7 +910,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 {/* Bottom hint */}
                 <div className="text-[10px] text-stone-300/80 font-medium">
                   {activeMode === 'reverse-engineer'
-                    ? 'Chef Pro Master Recipe & Sauce Deconstruction'
+                    ? 'Chef Pro • Recipe & Secret Sauce Recreation'
                     : 'Main Wide Camera (1x) • AI Ingredient Detection'}
                 </div>
               </div>
@@ -1003,13 +1003,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               </div>
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
-                  Cooked Dish Detected
+                  Delicious Dish Detected
                 </span>
                 <p className="text-stone-900 font-extrabold text-xs">
                   {detectedPreparedDish.dishName}
                 </p>
                 <p className="text-stone-600 text-[11px]">
-                  Deconstruct secret sauces &amp; master steps?
+                  Want the secret recipe to cook this at home?
                 </p>
               </div>
             </div>
@@ -1024,7 +1024,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               type="button"
               className="px-3 py-2 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-stone-950 text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
             >
-              Reverse Recipe →
+              Recreate Recipe →
             </button>
           </div>
         </div>

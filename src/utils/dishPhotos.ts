@@ -137,68 +137,113 @@ export const PLATING_PRESETS: DishPlatingPreset[] = [
 export function resolveDishPhoto(
   title: string,
   ingredients: string[] = [],
-  visualType?: string
+  visualType?: string,
+  englishDishName?: string
 ): string {
-  const query = `${title} ${ingredients.join(' ')} ${visualType || ''}`.toLowerCase();
+  const query = `${title} ${englishDishName || ''} ${ingredients.join(' ')} ${visualType || ''}`.toLowerCase();
 
-  // 1. Check for specific dish matches
-  if (/salmon|trout|fish|cod|halibut/.test(query)) {
+  // Fried Rice & Grains
+  if (/炒饭|nasi goreng|볶음밥|チャーハン|fried.?rice|paella|risotto|biryani/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.stirfry[2] || CULINARY_IMAGE_REGISTRY.stirfry[0];
+  }
+
+  // Ramen & Asian Noodles
+  if (/拉面|ラーメン|라면|ramen|udon|pho|soba/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.asian[0];
+  }
+
+  // Dumplings & Sushi
+  if (/饺子|煎饺|锅贴|만두|餃子|dumpling|gyoza|dim sum|wonton/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.asian[2];
+  }
+  if (/寿司|초밥|스시|sushi|sashimi/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.asian[1];
+  }
+
+  // Salmon, Fish & Seafood
+  if (/三文鱼|鲑鱼|연어|サーモン|鮭|salmon|trout/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.salmon[0];
   }
-  if (/shrimp|prawn|lobster|crab|calamari|seafood/.test(query)) {
+  if (/虾|udang|새우|エビ|海老|shrimp|prawn|lobster|calamari|seafood/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.seafood[0];
   }
-  if (/pasta|spaghetti|penne|rigatoni|carbonara|fettuccine|lasagna|noodles/.test(query)) {
-    if (/creamy|alfredo|carbonara|cheese/.test(query)) {
+  if (/鱼|ikan|생선|魚|fish|cod|halibut/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.salmon[1];
+  }
+
+  // Pasta & Noodles
+  if (/意面|意大利面|파스타|パスタ|pasta|spaghetti|penne|rigatoni|carbonara|fettuccine|lasagna/.test(query)) {
+    if (/creamy|alfredo|carbonara|cheese|白酱|크림|クリーム/.test(query)) {
       return CULINARY_IMAGE_REGISTRY.pasta[1];
     }
-    if (/pesto|basil|green/.test(query)) {
+    if (/pesto|basil|green|青酱|바질|バジル/.test(query)) {
       return CULINARY_IMAGE_REGISTRY.pasta[2];
     }
     return CULINARY_IMAGE_REGISTRY.pasta[0];
   }
-  if (/curry|masala|korma|tikka|dal/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.curry[0];
+  if (/面|炒面|mee|mie|국수|noodles|chow mein|pad thai/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.stirfry[1];
   }
-  if (/stir.?fry|wok|fried rice|chow mein/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.stirfry[0];
-  }
-  if (/taco|burrito|quesadilla|fajita|mexican/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.tacos[0];
-  }
-  if (/soup|stew|chowder|broth|bisque/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.soup[0];
-  }
-  if (/ramen|udon|pho|soba/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.asian[0];
-  }
-  if (/dumpling|gyoza|wonton|sushi|sashimi/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.asian[2];
-  }
-  if (/steak|beef|ribeye|tenderloin|roast/.test(query)) {
+
+  // Steak & Beef
+  if (/牛排|스테이크|ステーキ|steak|ribeye|tenderloin/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.beef[0];
   }
-  if (/chicken|poultry|turkey/.test(query)) {
+  if (/牛肉|daging|소고기|불고기|beef|bulgogi|roast/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.beef[1];
+  }
+
+  // Chicken
+  if (/鸡|ayam|닭|チキン|鶏|chicken|poultry|turkey/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.chicken[0];
   }
-  if (/egg|frittata|omelet|shakshuka|benedict/.test(query)) {
+
+  // Curries
+  if (/咖喱|kari|카레|カレー|curry|masala|korma|tikka|dal/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.curry[0];
+  }
+
+  // Eggs & Breakfast
+  if (/shakshuka|北非蛋|샤크슈카|シャクシュカ/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.eggs[0];
   }
-  if (/pizza|flatbread|calzone/.test(query)) {
+  if (/蛋|telur|계란|달걀|卵|egg|frittata|omelet/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.eggs[1];
+  }
+
+  // Pizza & Tacos & Burgers
+  if (/披萨|比萨|피자|ピザ|pizza|flatbread/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.pizza[0];
   }
-  if (/salad|bowl|greens|quinoa/.test(query)) {
-    return CULINARY_IMAGE_REGISTRY.salad[0];
+  if (/taco|burrito|quesadilla|fajita|mexican|타코|タコス/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.tacos[0];
   }
-  if (/burger|sandwich|toast|panini/.test(query)) {
+  if (/汉堡|버거|ハンバーガー|burger|sandwich|toast|panini|토스트|トースト/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.sandwich[0];
   }
-  if (/cake|pie|tart|brownie|dessert|sweet|cookie/.test(query)) {
+
+  // Soup & Stew
+  if (/汤|sup|국|찌개|スープ|味噌汁|soup|stew|chowder|broth/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.soup[0];
+  }
+
+  // Salad
+  if (/沙拉|샐러드|サラダ|salad|bowl|greens/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.salad[0];
+  }
+
+  // Dessert
+  if (/蛋糕|甜点|디저트|デザート|cake|pie|tart|brownie|dessert|sweet|cookie/.test(query)) {
     return CULINARY_IMAGE_REGISTRY.dessert[0];
   }
 
+  // Stir fry
+  if (/炒|wok|stir.?fry/.test(query)) {
+    return CULINARY_IMAGE_REGISTRY.stirfry[0];
+  }
+
   // Default balanced culinary photography
-  return CULINARY_IMAGE_REGISTRY.pasta[0];
+  return CULINARY_IMAGE_REGISTRY.chicken[1];
 }
 
 /**

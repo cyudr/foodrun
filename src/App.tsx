@@ -487,9 +487,10 @@ export default function App() {
         onToggleFavorite={handleToggleFavorite}
         onStartCooking={handleStartCooking}
         onAdjustPhoto={handleOpenAdjustPhoto}
+        currentLanguage={currentLanguage}
       />
 
-      {/* Reverse Engineer Modal */}
+      {/* Reverse Engineer / Recreate Dish Modal */}
       <ReverseEngineerModal
         recipe={reverseEngineeredRecipe}
         isOpen={isReverseModalOpen}
@@ -499,6 +500,7 @@ export default function App() {
         onStartCooking={handleStartCooking}
         onAddMissingToPantry={handleAddMissingToPantry}
         onAdjustPhoto={handleOpenAdjustPhoto}
+        currentLanguage={currentLanguage}
       />
 
       {/* Adjust Dish Photo Modal */}
