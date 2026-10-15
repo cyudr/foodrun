@@ -20,7 +20,7 @@ interface IngredientReviewProps {
   onAddIngredient: (name: string, category?: string) => void;
   onClearAll: () => void;
   onTakeAnotherPhoto: () => void;
-  onFindTheMealDBRecipes: () => void;
+  onFindGeminiRecipes: () => void;
   onGenerateCustomRecipe: () => void;
   chefTip?: string;
   suggestedCuisines?: string[];
@@ -43,7 +43,7 @@ export const IngredientReview: React.FC<IngredientReviewProps> = ({
   onAddIngredient,
   onClearAll,
   onTakeAnotherPhoto,
-  onFindTheMealDBRecipes,
+  onFindGeminiRecipes,
   onGenerateCustomRecipe,
   chefTip,
   suggestedCuisines,
@@ -265,10 +265,10 @@ export const IngredientReview: React.FC<IngredientReviewProps> = ({
         </p>
       </div>
 
-      {/* Primary Action Buttons: Find on TheMealDB / Generate AI Chef */}
+      {/* Primary Action Buttons: Find with Gemini AI */}
       <div className="mt-5 space-y-2.5">
         <button
-          onClick={onFindTheMealDBRecipes}
+          onClick={onFindGeminiRecipes}
           disabled={selectedCount === 0 || isSearchingRecipes}
           type="button"
           className="w-full py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-extrabold text-sm shadow-md shadow-amber-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
@@ -276,9 +276,9 @@ export const IngredientReview: React.FC<IngredientReviewProps> = ({
           {isSearchingRecipes ? (
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <Search className="w-4 h-4" />
+            <Sparkles className="w-4 h-4" />
           )}
-          Find Recipes via TheMealDB ({selectedCount})
+          Generate Recipes with Gemini AI ({selectedCount})
           <ChevronRight className="w-4 h-4" />
         </button>
 
@@ -289,7 +289,7 @@ export const IngredientReview: React.FC<IngredientReviewProps> = ({
           className="w-full py-3 px-4 rounded-2xl bg-stone-900 hover:bg-stone-800 active:scale-[0.98] text-amber-400 font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 border border-stone-800"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          ✨ Create Custom AI Chef Recipe (Exact Match)
+          ✨ Create Single Custom Dish (Exact Match)
         </button>
       </div>
     </div>

@@ -49,17 +49,8 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
         {/* Source Badge */}
         <div className="absolute top-3 left-3 flex items-center gap-1.5">
           <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 text-stone-900 backdrop-blur-md shadow-xs flex items-center gap-1">
-            {recipe.source === 'AI Chef' ? (
-              <>
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                AI Chef Special
-              </>
-            ) : (
-              <>
-                <ChefHat className="w-3 h-3 text-amber-600" />
-                TheMealDB
-              </>
-            )}
+            <Sparkles className="w-3 h-3 text-amber-500" />
+            Gemini AI Chef
           </span>
         </div>
 

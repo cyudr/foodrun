@@ -25,7 +25,7 @@ export interface RecipeIngredient {
 export interface Recipe {
   id: string;
   title: string;
-  source: 'TheMealDB' | 'AI Chef';
+  source: 'Gemini AI' | 'AI Chef';
   description?: string;
   category: string;
   area: string;

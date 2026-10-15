@@ -1,5 +1,16 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, Image as ImageIcon, Sparkles, RefreshCw, AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import {
+  Camera,
+  Image as ImageIcon,
+  Sparkles,
+  RefreshCw,
+  AlertCircle,
+  Zap,
+  ShieldCheck,
+  ZoomIn,
+  ZoomOut,
+  Sliders,
+} from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
 
 interface CameraScannerProps {
@@ -31,6 +42,37 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
+  // Camera Zoom state (1.0x to 4.0x)
+  const [zoom, setZoom] = useState<number>(1.0);
+  const [minZoom, setMinZoom] = useState<number>(1.0);
+  const [maxZoom, setMaxZoom] = useState<number>(4.0);
+  const [hasHardwareZoom, setHasHardwareZoom] = useState<boolean>(false);
+  const [showZoomSlider, setShowZoomSlider] = useState<boolean>(false);
+
+  // Apply zoom to MediaStreamTrack (hardware) and state (digital fallback)
+  const applyZoom = async (targetZoom: number, activeStream?: MediaStream | null) => {
+    const clampedZoom = Math.min(Math.max(targetZoom, minZoom), maxZoom);
+    setZoom(clampedZoom);
+
+    const s = activeStream !== undefined ? activeStream : stream;
+    if (s) {
+      const track = s.getVideoTracks()[0];
+      if (track) {
+        try {
+          const capabilities = (track.getCapabilities && track.getCapabilities()) as any;
+          if (capabilities && 'zoom' in capabilities) {
+            await (track as any).applyConstraints({
+              advanced: [{ zoom: clampedZoom }],
+            });
+            setHasHardwareZoom(true);
+          }
+        } catch (e) {
+          // Hardware zoom constraint failed, digital fallback handles it smoothly
+        }
+      }
+    }
+  };
+
   // Start video stream
   const startCamera = async (mode: 'environment' | 'user' = facingMode) => {
     setCameraError(null);
@@ -50,12 +92,25 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(mediaStream);
+
+      // Inspect hardware zoom capability if supported by browser/device
+      const track = mediaStream.getVideoTracks()[0];
+      if (track && track.getCapabilities) {
+        const capabilities = track.getCapabilities() as any;
+        if (capabilities && capabilities.zoom) {
+          setMinZoom(capabilities.zoom.min || 1.0);
+          setMaxZoom(capabilities.zoom.max || 4.0);
+          setHasHardwareZoom(true);
+        }
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
       }
       setCameraActive(true);
       setFacingMode(mode);
+      setZoom(1.0);
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setCameraError('Camera access was not granted or not available. You can upload a photo or use a sample.');
@@ -69,6 +124,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       setStream(null);
     }
     setCameraActive(false);
+    setZoom(1.0);
   };
 
   useEffect(() => {
@@ -82,20 +138,36 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     startCamera(nextMode);
   };
 
-  // Capture frame from video stream
+  // Capture frame from video stream with active zoom applied
   const capturePhoto = () => {
     if (!videoRef.current) return;
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+
+    canvas.width = width;
+    canvas.height = height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    if (hasHardwareZoom) {
+      // Hardware camera handled magnification natively
+      ctx.drawImage(video, 0, 0, width, height);
+    } else if (zoom > 1.0) {
+      // Digital zoom: crop centered magnified frame into canvas
+      const cropW = width / zoom;
+      const cropH = height / zoom;
+      const cropX = (width - cropW) / 2;
+      const cropY = (height - cropH) / 2;
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, width, height);
+    } else {
+      ctx.drawImage(video, 0, 0, width, height);
+    }
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
     stopCamera();
     setPreviewImage(dataUrl);
@@ -115,7 +187,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       analyzeImage(dataUrl);
     };
     reader.readAsDataURL(file);
-    // Reset file input value so user can re-upload same file if desired
     e.target.value = '';
   };
 
@@ -125,7 +196,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setStatusMessage('Gemini AI is examining ingredients, produce, and spices...');
 
     try {
-      const response = await fetch('/api/identify-ingredients', {
+      const response = await fetch('/api/gemini/identify-ingredients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,7 +207,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to analyze image');
+        throw new Error(errorData.error || 'Failed to analyze image with Gemini');
       }
 
       const data = await response.json();
@@ -160,7 +231,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setIsAnalyzing(true);
     setStatusMessage(`Loading ${sample.title}...`);
     try {
-      // Fetch sample image and convert to base64
       const res = await fetch(sample.imageUrl);
       const blob = await res.blob();
       const reader = new FileReader();
@@ -171,7 +241,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       };
       reader.readAsDataURL(blob);
     } catch {
-      // Fallback: mock detected ingredients directly
       const mockItems = sample.mockIngredients.map((name, i) => ({
         id: `mock-${Date.now()}-${i}`,
         name,
@@ -191,45 +260,110 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   };
 
+  const zoomPresets = [1.0, 1.5, 2.0, 3.0];
+
   return (
     <div className="w-full max-w-lg mx-auto pb-24">
       {/* Top Banner */}
       <div className="px-4 pt-3 pb-2 text-center">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
           <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          AI Food Vision
+          Gemini AI Food Vision
         </span>
         <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
           Snap Your Ingredients
         </h1>
         <p className="text-stone-600 text-xs mt-1">
-          Take a photo of your fridge, countertop, or pantry to auto-detect what you have.
+          Take a photo of your fridge, countertop, or pantry with zoom to auto-detect what you have.
         </p>
       </div>
 
-      {/* Main Viewfinder / Photo Area */}
+      {/* Main Viewfinder Area */}
       <div className="px-4 mt-2">
         <div className="relative aspect-4/3 w-full bg-stone-900 rounded-3xl overflow-hidden shadow-xl border border-stone-800 flex flex-col items-center justify-center">
           {/* Live Camera View */}
           {cameraActive ? (
             <>
-              <video
-                ref={videoRef}
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
+              {/* Scaled Video for Digital Zoom Preview */}
+              <div className="w-full h-full overflow-hidden flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  style={{
+                    transform: !hasHardwareZoom && zoom > 1.0 ? `scale(${zoom})` : 'none',
+                    transformOrigin: 'center center',
+                    transition: 'transform 0.15s ease-out',
+                  }}
+                  className="w-full h-full object-cover"
+                />
+              </div>
 
               {/* Viewfinder Overlay Targeting Rectangles */}
-              <div className="absolute inset-8 border-2 border-dashed border-white/60 rounded-2xl pointer-events-none flex items-center justify-center">
+              <div className="absolute inset-8 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none flex items-center justify-center">
                 <div className="w-12 h-12 border-t-2 border-l-2 border-amber-400 absolute top-0 left-0 rounded-tl-lg" />
                 <div className="w-12 h-12 border-t-2 border-r-2 border-amber-400 absolute top-0 right-0 rounded-tr-lg" />
                 <div className="w-12 h-12 border-b-2 border-l-2 border-amber-400 absolute bottom-0 left-0 rounded-bl-lg" />
                 <div className="w-12 h-12 border-b-2 border-r-2 border-amber-400 absolute bottom-0 right-0 rounded-br-lg" />
-                <span className="text-white/80 text-xs font-medium bg-black/40 px-2.5 py-1 rounded-full backdrop-blur-xs">
-                  Place ingredients in frame
-                </span>
+
+                {/* Active Zoom Badge Indicator */}
+                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <ZoomIn className="w-3 h-3 text-amber-400" />
+                  {zoom.toFixed(1)}x
+                </div>
               </div>
+
+              {/* Floating Camera Zoom Controls Bar (1x, 1.5x, 2x, 3x) */}
+              <div className="absolute bottom-3 inset-x-4 flex items-center justify-center gap-1.5 z-10">
+                <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
+                  {zoomPresets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => applyZoom(preset)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
+                        Math.abs(zoom - preset) < 0.1
+                          ? 'bg-amber-500 text-stone-950 scale-105 shadow-xs'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {preset}x
+                    </button>
+                  ))}
+
+                  {/* Zoom Fine-Tuning Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowZoomSlider(!showZoomSlider)}
+                    className={`p-1 rounded-full transition-colors ml-1 ${
+                      showZoomSlider ? 'text-amber-400 bg-white/20' : 'text-white/70 hover:text-white'
+                    }`}
+                    title="Fine tune zoom"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Continuous Zoom Slider when toggled */}
+              {showZoomSlider && (
+                <div className="absolute bottom-14 inset-x-8 bg-black/75 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center gap-2.5 z-10 animate-fade-in shadow-xl">
+                  <ZoomOut className="w-3.5 h-3.5 text-white/70" />
+                  <input
+                    type="range"
+                    min={minZoom}
+                    max={maxZoom}
+                    step={0.1}
+                    value={zoom}
+                    onChange={(e) => applyZoom(parseFloat(e.target.value))}
+                    className="flex-1 accent-amber-500 cursor-pointer h-1.5 bg-white/30 rounded-lg"
+                  />
+                  <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] font-mono font-bold text-white min-w-[32px] text-right">
+                    {zoom.toFixed(1)}x
+                  </span>
+                </div>
+              )}
 
               {/* Flip camera button */}
               <button
@@ -242,7 +376,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               </button>
             </>
           ) : previewImage ? (
-            /* Preview of captured or selected image */
+            /* Preview of captured image */
             <div className="relative w-full h-full">
               <img
                 src={previewImage}
@@ -256,7 +390,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     <Sparkles className="w-6 h-6 text-amber-400 absolute inset-0 m-auto animate-pulse" />
                   </div>
                   <p className="text-white font-semibold text-sm mt-4">
-                    Identifying Ingredients...
+                    Gemini AI Vision Analyzing...
                   </p>
                   <p className="text-amber-200/90 text-xs mt-1 max-w-xs leading-relaxed">
                     {statusMessage}
@@ -265,14 +399,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               )}
             </div>
           ) : (
-            /* Idle Placeholder when camera is not started */
+            /* Idle Placeholder */
             <div className="p-6 text-center text-stone-400 flex flex-col items-center">
               <div className="w-16 h-16 rounded-2xl bg-stone-800/80 flex items-center justify-center text-amber-400 mb-3 shadow-inner">
                 <Camera className="w-8 h-8" />
               </div>
-              <h3 className="text-white font-semibold text-base">Camera Ready</h3>
+              <h3 className="text-white font-semibold text-base">Camera Ready with Zoom</h3>
               <p className="text-stone-400 text-xs mt-1 max-w-xs">
-                Tap "Open Live Camera" or upload a photo of your food ingredients.
+                Tap "Open Camera" to use 1x–4x zoom, or upload a photo of your food ingredients.
               </p>
             </div>
           )}
@@ -304,6 +438,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               onClick={capturePhoto}
               type="button"
               className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 p-1 shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+              title="Capture Photo"
             >
               <div className="w-13 h-13 rounded-full border-2 border-white flex items-center justify-center bg-white/20">
                 <div className="w-9 h-9 rounded-full bg-white shadow-xs" />
@@ -341,7 +476,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               Choose Photo
             </button>
 
-            {/* Hidden file input with mobile camera capture support */}
             <input
               ref={fileInputRef}
               type="file"
@@ -354,7 +488,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         )}
       </div>
 
-      {/* Pantry Status Banner (if user already has ingredients) */}
+      {/* Pantry Status Banner */}
       {pantryCount > 0 && (
         <div className="px-4 mt-4">
           <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
@@ -367,7 +501,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   {pantryCount} Ingredient{pantryCount > 1 ? 's' : ''} Collected
                 </p>
                 <p className="text-emerald-700 text-[11px]">
-                  Snap more items or view pantry to get recipes.
+                  Snap more items or view pantry to get Gemini recipes.
                 </p>
               </div>
             </div>
@@ -427,7 +561,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       {/* Privacy and Camera Tip */}
       <div className="px-6 mt-6 flex items-center justify-center gap-2 text-stone-600 text-[11px] text-center">
         <ShieldCheck className="w-3.5 h-3.5 text-stone-600" />
-        <span>Images are processed directly by Gemini for ingredient recognition.</span>
+        <span>Images are processed directly by Gemini AI for ingredient recognition.</span>
       </div>
     </div>
   );

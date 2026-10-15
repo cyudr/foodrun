@@ -120,21 +120,21 @@ export default function App() {
     }
   };
 
-  // Search recipes on TheMealDB
-  const handleFindTheMealDBRecipes = async () => {
+  // Generate recipes via Gemini AI
+  const handleFindGeminiRecipes = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) return;
 
     setIsSearchingRecipes(true);
     try {
-      const response = await fetch('/api/recipes/search-themealdb', {
+      const response = await fetch('/api/gemini/find-recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ingredients: activeIngredients }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to find recipes on TheMealDB');
+        throw new Error('Failed to generate recipes with Gemini AI');
       }
 
       const data = await response.json();
@@ -148,7 +148,7 @@ export default function App() {
     }
   };
 
-  // Generate Bespoke Custom Recipe with AI Chef
+  // Generate Bespoke Custom Recipe with Gemini AI Chef
   const handleGenerateCustomRecipe = async () => {
     const activeIngredients = ingredients.filter((i) => i.checked).map((i) => i.name);
     if (activeIngredients.length === 0) {
@@ -158,7 +158,7 @@ export default function App() {
 
     setIsLoadingCustomRecipe(true);
     try {
-      const response = await fetch('/api/recipes/generate-custom', {
+      const response = await fetch('/api/gemini/generate-recipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +174,6 @@ export default function App() {
 
       const data = await response.json();
       if (data.recipe) {
-        // Prepend custom recipe to recipes list
         setRecipes((prev) => [data.recipe, ...prev.filter((r) => r.id !== data.recipe.id)]);
         setSelectedRecipe(data.recipe);
         setCurrentTab('recipes');
@@ -239,7 +238,7 @@ export default function App() {
             onAddIngredient={handleAddIngredient}
             onClearAll={handleClearAllIngredients}
             onTakeAnotherPhoto={() => setCurrentTab('scanner')}
-            onFindTheMealDBRecipes={handleFindTheMealDBRecipes}
+            onFindGeminiRecipes={handleFindGeminiRecipes}
             onGenerateCustomRecipe={handleGenerateCustomRecipe}
             chefTip={chefTip}
             suggestedCuisines={suggestedCuisines}

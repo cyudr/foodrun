@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 export const geminiRouter = Router();
 
-// Lazy or dynamic initialization to pick up runtime environment variables
+// Dynamic initialization to pick up GEMINI_KEY (or GEMINI_API_KEY)
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -20,7 +20,18 @@ function getGeminiClient(): GoogleGenAI {
   });
 }
 
-async function handleIdentify(req: Request, res: Response) {
+// Curated culinary food images for recipe presentations
+const RECIPE_IMAGE_FALLBACKS = [
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=800&q=80',
+];
+
+// 1. Photo Analysis: Identify Ingredients
+export async function handleIdentify(req: Request, res: Response) {
   try {
     const { imageBase64, mimeType = 'image/jpeg' } = req.body;
 
@@ -102,19 +113,145 @@ Return valid JSON according to the schema.`,
       chefTip: parsed.chefTip || 'Ensure vegetables are washed and prepped before starting your recipe.',
     });
   } catch (error: any) {
-    console.error('Error in /api/gemini/identify-ingredients:', error);
+    console.error('Error in handleIdentify:', error);
     return res.status(500).json({
       error: error?.message || 'Failed to identify ingredients from image',
     });
   }
 }
 
-// Bind both paths to handleIdentify
-geminiRouter.post('/identify-ingredients', handleIdentify);
-geminiRouter.post('/identify', handleIdentify);
+// 2. Recipe Generation: Multi-Recipe Discovery via Gemini
+export async function handleFindRecipes(req: Request, res: Response) {
+  try {
+    const { ingredients = [], preferences = '' } = req.body;
 
-// 2. Generate Custom Tailored AI Recipe
-geminiRouter.post('/generate-recipe', async (req: Request, res: Response) => {
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return res.status(400).json({ error: 'At least one ingredient is required' });
+    }
+
+    const ai = getGeminiClient();
+
+    const prompt = `You are a world-class culinary chef. Generate 5 diverse, mouth-watering, realistic recipes that feature and make maximum use of these user-provided ingredients:
+${ingredients.join(', ')}.
+
+Preferences: ${preferences || 'Balanced variety: 1 quick 15-min meal, 1 comforting classic, 1 fresh healthy dish, 1 creative gourmet option'}.
+
+Instructions:
+1. Maximize use of user ingredients. Basic pantry items (salt, pepper, cooking oil, water, butter) can be assumed available.
+2. For each ingredient in every recipe, explicitly set:
+   - "hasIngredient": true if the user provided it (or very similar), false if it's an extra item.
+   - "isStaple": true if it's a basic kitchen staple (salt, oil, pepper, water, flour).
+3. Compute an honest matchPercentage (0 to 100) based on how much of the dish can be made with user's items.
+4. Break each recipe into clear, numbered cooking steps. Each step should be concise and spoken-friendly for a voice cooking assistant.
+5. Provide realistic prep and cook times in minutes, difficulty ("Easy", "Medium", "Hard"), and servings.
+6. Provide an imageKeyword for each dish (e.g. "pasta", "soup", "salad", "stir-fry", "curry", "roast").
+
+Return pure JSON matching the schema.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            recipes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  area: { type: Type.STRING },
+                  difficulty: { type: Type.STRING },
+                  prepTimeMinutes: { type: Type.NUMBER },
+                  cookTimeMinutes: { type: Type.NUMBER },
+                  servings: { type: Type.NUMBER },
+                  imageKeyword: { type: Type.STRING },
+                  ingredients: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        name: { type: Type.STRING },
+                        measure: { type: Type.STRING },
+                        hasIngredient: { type: Type.BOOLEAN },
+                        isStaple: { type: Type.BOOLEAN },
+                      },
+                      required: ['name', 'measure', 'hasIngredient', 'isStaple'],
+                    },
+                  },
+                  steps: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        stepNumber: { type: Type.NUMBER },
+                        instruction: { type: Type.STRING },
+                        estimatedMinutes: { type: Type.NUMBER },
+                        tip: { type: Type.STRING },
+                      },
+                      required: ['stepNumber', 'instruction'],
+                    },
+                  },
+                  matchPercentage: { type: Type.NUMBER },
+                  chefNotes: { type: Type.STRING },
+                },
+                required: ['title', 'category', 'area', 'difficulty', 'ingredients', 'steps', 'cookTimeMinutes'],
+              },
+            },
+          },
+          required: ['recipes'],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    const processedRecipes = (parsed.recipes || []).map((recipe: any, index: number) => {
+      const totalIng = (recipe.ingredients || []).length;
+      const matched = (recipe.ingredients || []).filter((i: any) => i.hasIngredient).length;
+      const missing = (recipe.ingredients || []).filter((i: any) => !i.hasIngredient && !i.isStaple).length;
+
+      const fallbackImage = RECIPE_IMAGE_FALLBACKS[index % RECIPE_IMAGE_FALLBACKS.length];
+
+      return {
+        id: `gemini-rec-${Date.now()}-${index}`,
+        title: recipe.title,
+        source: 'Gemini AI',
+        description: recipe.description || 'Crafted with Gemini AI chef intelligence.',
+        category: recipe.category || 'Chef Special',
+        area: recipe.area || 'Fusion',
+        imageUrl: fallbackImage,
+        difficulty: recipe.difficulty || 'Easy',
+        estimatedTimeMinutes: (recipe.prepTimeMinutes || 10) + (recipe.cookTimeMinutes || 15),
+        servings: recipe.servings || 2,
+        ingredients: recipe.ingredients || [],
+        steps: recipe.steps || [],
+        matchPercentage: recipe.matchPercentage || Math.round((matched / (totalIng || 1)) * 100),
+        matchedCount: matched,
+        missingCount: missing,
+        totalIngredients: totalIng,
+        chefNotes: recipe.chefNotes || 'Cook with love and season to taste.',
+      };
+    });
+
+    processedRecipes.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
+
+    return res.json({
+      recipes: processedRecipes,
+      totalFound: processedRecipes.length,
+      userIngredients: ingredients,
+    });
+  } catch (error: any) {
+    console.error('Error in handleFindRecipes:', error);
+    return res.status(500).json({ error: error?.message || 'Failed to generate recipes with Gemini' });
+  }
+}
+
+// 3. Single Custom Recipe Generation
+export async function handleCustomRecipe(req: Request, res: Response) {
   try {
     const { ingredients = [], mealType = 'Any', dietaryPreference = 'None' } = req.body;
 
@@ -124,16 +261,16 @@ geminiRouter.post('/generate-recipe', async (req: Request, res: Response) => {
 
     const ai = getGeminiClient();
 
-    const prompt = `You are an expert chef creating a delicious, realistic, high-rated home recipe specifically featuring these identified ingredients:
+    const prompt = `You are an expert chef creating a single bespoke gourmet recipe using these ingredients:
 ${ingredients.join(', ')}.
 Meal type preference: ${mealType}.
 Dietary preference: ${dietaryPreference}.
 
 Requirements:
-1. Create a clear recipe name that sounds appetizing and restaurant-quality.
-2. Utilize as many of the user's available ingredients as possible. Assume basic pantry items (salt, pepper, cooking oil, water) are always on hand.
-3. Provide realistic prep time, cook time, difficulty (Easy, Medium, Hard), and servings.
-4. Break down the cooking process into concise, well-sequenced, spoken-friendly cooking steps (each step should be easy to listen to while cooking).
+1. Create a clear recipe name that sounds appetizing.
+2. Utilize as many of the user's available ingredients as possible.
+3. Provide realistic prep time, cook time, difficulty, and servings.
+4. Break down the cooking process into concise, well-sequenced, spoken-friendly cooking steps.
 5. Add timer recommendation for steps requiring cooking/simmering/baking.
 6. Provide chef advice/pro-tips.
 
@@ -191,12 +328,12 @@ Return purely JSON matching the schema.`;
     const parsed = JSON.parse(response.text || '{}');
     const customRecipe = {
       id: `custom-${Date.now()}`,
-      title: parsed.title || 'Chef Special Creation',
-      source: 'AI Chef',
-      description: parsed.description || 'Custom crafted recipe based on your fresh ingredients.',
+      title: parsed.title || 'Gemini Chef Special Creation',
+      source: 'Gemini AI',
+      description: parsed.description || 'Custom crafted recipe by Gemini AI based on your fresh ingredients.',
       category: parsed.category || 'Chef Special',
       area: parsed.area || 'Fusion',
-      imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+      imageUrl: RECIPE_IMAGE_FALLBACKS[0],
       difficulty: parsed.difficulty || 'Easy',
       estimatedTimeMinutes: (parsed.prepTimeMinutes || 10) + (parsed.cookTimeMinutes || 20),
       servings: parsed.servings || 2,
@@ -211,13 +348,13 @@ Return purely JSON matching the schema.`;
 
     return res.json({ recipe: customRecipe });
   } catch (error: any) {
-    console.error('Error generating custom recipe:', error);
+    console.error('Error in handleCustomRecipe:', error);
     return res.status(500).json({ error: error?.message || 'Failed to generate custom recipe' });
   }
-});
+}
 
-// 3. Spoken Audio Generation via Gemini TTS
-geminiRouter.post('/tts', async (req: Request, res: Response) => {
+// 4. Voice TTS via Gemini
+export async function handleTts(req: Request, res: Response) {
   try {
     const { text, voice = 'Kore' } = req.body;
     if (!text) {
@@ -263,6 +400,36 @@ geminiRouter.post('/tts', async (req: Request, res: Response) => {
     console.warn('TTS request error:', err?.message);
     return res.status(500).json({ error: 'TTS fallback needed' });
   }
-});
+}
+
+// Universal Serverless Dispatcher for /api/gemini
+export async function handleGeminiServerless(req: Request, res: Response) {
+  const action = req.body?.action;
+  if (action === 'identify' || action === 'identify-ingredients' || req.body?.imageBase64) {
+    return handleIdentify(req, res);
+  }
+  if (action === 'generate-recipe' || action === 'custom-recipe') {
+    return handleCustomRecipe(req, res);
+  }
+  if (action === 'find-recipes' || action === 'search-recipes' || req.body?.ingredients) {
+    return handleFindRecipes(req, res);
+  }
+  if (action === 'tts' || req.body?.text) {
+    return handleTts(req, res);
+  }
+
+  return res.status(400).json({
+    error: 'Missing or unrecognized action. Expected action: identify, find-recipes, generate-recipe, or tts',
+  });
+}
+
+// Mount routes on router
+geminiRouter.post('/', handleGeminiServerless);
+geminiRouter.post('/identify', handleIdentify);
+geminiRouter.post('/identify-ingredients', handleIdentify);
+geminiRouter.post('/find-recipes', handleFindRecipes);
+geminiRouter.post('/search-recipes', handleFindRecipes);
+geminiRouter.post('/generate-recipe', handleCustomRecipe);
+geminiRouter.post('/tts', handleTts);
 
 export default geminiRouter;

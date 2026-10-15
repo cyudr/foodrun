@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import healthRouter from './api/health.ts';
 import geminiRouter from './api/gemini.ts';
-import mealDbRouter from './api/mealDB.ts';
+import apiRouter from './api/index.ts';
 
 dotenv.config();
 
@@ -14,20 +14,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '35mb' }));
 
-// Mount Modular API Routers in root folder
-app.use('/api/health', healthRouter);
+// Mount Core API Routers
 app.use('/api/gemini', geminiRouter);
-app.use('/api/mealDB', mealDbRouter);
+app.use('/api/health', healthRouter);
+app.use('/api', apiRouter);
 
-// Aliases for seamless backward compatibility
+// Route recipe discovery and identification directly to Gemini
 app.use('/api/identify-ingredients', (req, res, next) => {
   req.url = '/identify-ingredients';
   geminiRouter(req, res, next);
 });
 
-app.use('/api/recipes/search-themealdb', (req, res, next) => {
-  req.url = '/search-by-ingredients';
-  mealDbRouter(req, res, next);
+app.use('/api/recipes/find-recipes', (req, res, next) => {
+  req.url = '/find-recipes';
+  geminiRouter(req, res, next);
 });
 
 app.use('/api/recipes/generate-custom', (req, res, next) => {
@@ -60,7 +60,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SnapChef Server running on http://0.0.0.0:${PORT}`);
+    console.log(`SnapChef Server running on http://0.0.0.0:${PORT} (Gemini AI Powered)`);
   });
 }
 
