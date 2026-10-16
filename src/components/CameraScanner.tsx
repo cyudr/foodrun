@@ -509,10 +509,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setStatusMessage(t('analyzingPhoto', currentLanguage));
 
     try {
+      const mimeMatch = base64Image.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/);
+      const detectedMime = mimeMatch ? mimeMatch[1] : (base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg');
+
       const payload = {
         action: 'reverse-engineer',
         imageBase64: base64Image,
-        mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        mimeType: detectedMime,
         userIngredients: userIngredients || [],
         language: currentLanguage,
         proCode: proCode,
@@ -550,10 +553,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setStatusMessage(t('analyzingPhoto', currentLanguage));
 
     try {
+      const mimeMatch = base64Image.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/);
+      const detectedMime = mimeMatch ? mimeMatch[1] : (base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg');
+
       const payload = {
         action: 'identify',
         imageBase64: base64Image,
-        mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        mimeType: detectedMime,
         language: currentLanguage,
       };
 
