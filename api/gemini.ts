@@ -989,6 +989,14 @@ Return purely JSON matching the schema.`;
 export async function handleReverseEngineerRecipe(req: any, res: any) {
   try {
     const body = req.body || {};
+    const userCode = (body.proCode || body.code || body.inviteCode || '').toString().trim();
+
+    if (!checkIsAuthorizedInviteCode(userCode)) {
+      return sendJson(res, 403, {
+        error: 'Chef Pro invitation code required. Please enter a valid invitation code to unlock Chef Pro features.',
+      });
+    }
+
     const rawImage = body.imageBase64 || body.image;
     const userIngredients: string[] = Array.isArray(body.userIngredients) ? body.userIngredients : [];
     const language = body.language || 'en';
@@ -1287,7 +1295,34 @@ export async function handleTts(req: any, res: any) {
   }
 }
 
-// 8. Verify Invitation Code for Chef Pro (matching environment variables starting with "vibe_")
+// Helper: Verify if an invitation code is authorized
+export function checkIsAuthorizedInviteCode(inputCode: string): boolean {
+  if (!inputCode) return false;
+  const cleanInput = inputCode.trim().toLowerCase();
+  const vibeEnvKeys = Object.keys(process.env).filter((key) =>
+    key.toLowerCase().startsWith('vibe_')
+  );
+
+  if (vibeEnvKeys.length === 0) return false;
+
+  for (const key of vibeEnvKeys) {
+    const val = (process.env[key] || '').trim();
+    const cleanVal = val.toLowerCase();
+    const cleanKey = key.toLowerCase();
+    const cleanSuffix = cleanKey.replace(/^vibe_/i, '').trim();
+
+    if (
+      (cleanVal && cleanVal === cleanInput) ||
+      cleanKey === cleanInput ||
+      (cleanSuffix && cleanSuffix === cleanInput)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 8. Verify Invitation Code for Chef Pro
 export function handleVerifyInviteCode(req: any, res: any) {
   try {
     const body = req.body || {};
@@ -1300,38 +1335,11 @@ export function handleVerifyInviteCode(req: any, res: any) {
       });
     }
 
-    const cleanInput = inputCode.toLowerCase();
-
-    // Scan process.env for all keys starting with "vibe_" (case-insensitive)
-    const vibeEnvKeys = Object.keys(process.env).filter((key) =>
-      key.toLowerCase().startsWith('vibe_')
-    );
-
-    let isMatch = false;
-    let matchedEnvName = '';
-
-    for (const key of vibeEnvKeys) {
-      const val = (process.env[key] || '').trim();
-      const cleanVal = val.toLowerCase();
-      const cleanKey = key.toLowerCase();
-      const cleanSuffix = cleanKey.replace(/^vibe_/i, '').trim();
-
-      // Check if code matches the env var value, the key name, or the key suffix
-      if (
-        (cleanVal && cleanVal === cleanInput) ||
-        cleanKey === cleanInput ||
-        (cleanSuffix && cleanSuffix === cleanInput)
-      ) {
-        isMatch = true;
-        matchedEnvName = key;
-        break;
-      }
-    }
+    const isMatch = checkIsAuthorizedInviteCode(inputCode);
 
     if (isMatch) {
       return sendJson(res, 200, {
         valid: true,
-        matched: matchedEnvName,
         message: 'Invitation code verified! Welcome to Chef Pro.',
       });
     } else {

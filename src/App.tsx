@@ -61,22 +61,66 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [activeCookingRecipe, setActiveCookingRecipe] = useState<Recipe | null>(null);
 
-  // Chef Pro / Premium tier state gated by invitation codes
+  // Chef Pro / Premium tier state strictly gated by invitation codes
+  const [proCode, setProCode] = useState<string>(() => {
+    try {
+      return (localStorage.getItem('snapchef_pro_code') || '').trim();
+    } catch {
+      return '';
+    }
+  });
+
   const [isPro, setIsPro] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('snapchef_is_pro') === 'true';
+      const storedPro = localStorage.getItem('snapchef_is_pro') === 'true';
+      const storedCode = (localStorage.getItem('snapchef_pro_code') || '').trim();
+      return storedPro && storedCode.length > 0;
     } catch {
       return false;
     }
   });
 
-  const [proCode, setProCode] = useState<string>(() => {
-    try {
-      return localStorage.getItem('snapchef_pro_code') || '';
-    } catch {
-      return '';
+  // Verify stored invitation code with backend on startup
+  // Deactivates Pro immediately if no code was entered or if code is invalid
+  useEffect(() => {
+    const storedCode = (localStorage.getItem('snapchef_pro_code') || '').trim();
+    if (!storedCode) {
+      setIsPro(false);
+      setProCode('');
+      try {
+        localStorage.removeItem('snapchef_is_pro');
+        localStorage.removeItem('snapchef_pro_code');
+      } catch {
+        // ignore
+      }
+      return;
     }
-  });
+
+    fetch('/api/gemini.ts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-invite-code', code: storedCode }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !data.valid) {
+          setIsPro(false);
+          setProCode('');
+          try {
+            localStorage.removeItem('snapchef_is_pro');
+            localStorage.removeItem('snapchef_pro_code');
+          } catch {
+            // ignore
+          }
+        } else {
+          setIsPro(true);
+        }
+      })
+      .catch(() => {
+        // On connection error, do not allow unverified access
+        setIsPro(false);
+      });
+  }, []);
 
   const [isProModalOpen, setIsProModalOpen] = useState(false);
   const [proModalFeature, setProModalFeature] = useState<string>('reverse-engineer');
@@ -237,8 +281,12 @@ export default function App() {
     });
   };
 
-  // Open adjust photo modal
+  // Open adjust photo modal (Chef Pro feature)
   const handleOpenAdjustPhoto = (recipe: Recipe) => {
+    if (!isPro) {
+      handleOpenProModal('adjust-photo');
+      return;
+    }
     setAdjustPhotoRecipe(recipe);
     setIsAdjustPhotoModalOpen(true);
   };
@@ -455,6 +503,7 @@ export default function App() {
             pantryCount={ingredients.length}
             userIngredients={ingredients.filter((i) => i.checked).map((i) => i.name)}
             isPro={isPro}
+            proCode={proCode}
             onOpenProModal={handleOpenProModal}
             onReverseEngineerCompleted={handleReverseEngineerCompleted}
             currentLanguage={currentLanguage}

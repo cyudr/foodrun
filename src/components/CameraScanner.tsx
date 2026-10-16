@@ -32,6 +32,7 @@ interface CameraScannerProps {
   pantryCount: number;
   userIngredients?: string[];
   isPro?: boolean;
+  proCode?: string;
   onOpenProModal?: (feature?: string) => void;
   onReverseEngineerCompleted?: (recipe: any) => void;
   currentLanguage?: SupportedLanguage;
@@ -53,6 +54,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   pantryCount,
   userIngredients = [],
   isPro = false,
+  proCode = '',
   onOpenProModal,
   onReverseEngineerCompleted,
   currentLanguage = 'en',
@@ -70,6 +72,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   // Scanner Mode: 'ingredients' (Pantry) vs 'reverse-engineer' (Chef Pro)
   const [activeMode, setActiveMode] = useState<'ingredients' | 'reverse-engineer'>('ingredients');
+
+  // Enforce Pro gate: automatically revert to ingredients mode if user is not Pro
+  useEffect(() => {
+    if (!isPro && activeMode === 'reverse-engineer') {
+      setActiveMode('ingredients');
+    }
+  }, [isPro, activeMode]);
 
   // Prepared dish detection banner when a cooked meal is identified in ingredients mode
   const [detectedPreparedDish, setDetectedPreparedDish] = useState<{
@@ -428,6 +437,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setPreviewImage(dataUrl);
 
     if (activeMode === 'reverse-engineer') {
+      if (!isPro) {
+        if (onOpenProModal) onOpenProModal('reverse-engineer');
+        setActiveMode('ingredients');
+        return;
+      }
       reverseEngineerImage(dataUrl);
     } else {
       analyzeImage(dataUrl);
@@ -438,6 +452,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (activeMode === 'reverse-engineer' && !isPro) {
+      e.target.value = '';
+      if (onOpenProModal) onOpenProModal('reverse-engineer');
+      setActiveMode('ingredients');
+      return;
+    }
 
     if (onConsumeUsage && !onConsumeUsage()) {
       e.target.value = '';
@@ -458,6 +479,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       stopCamera();
 
       if (activeMode === 'reverse-engineer') {
+        if (!isPro) {
+          setIsAnalyzing(false);
+          if (onOpenProModal) onOpenProModal('reverse-engineer');
+          setActiveMode('ingredients');
+          return;
+        }
         await reverseEngineerImage(processed);
       } else {
         await analyzeImage(processed);
@@ -474,6 +501,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   // Reverse Engineer Food Recipe Based on Photo (Premium Feature)
   const reverseEngineerImage = async (base64Image: string) => {
+    if (!isPro) {
+      setIsAnalyzing(false);
+      if (onOpenProModal) onOpenProModal('reverse-engineer');
+      setActiveMode('ingredients');
+      return;
+    }
+
     setIsAnalyzing(true);
     setStatusMessage(t('analyzingPhoto', currentLanguage));
 
@@ -484,6 +518,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         mimeType: base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
         userIngredients: userIngredients || [],
         language: currentLanguage,
+        proCode: proCode,
       };
 
       const response = await fetch('/api/gemini.ts', {
@@ -584,6 +619,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         setPreviewImage(base64);
 
         if (sample.isCookedDish || activeMode === 'reverse-engineer') {
+          if (!isPro) {
+            setIsAnalyzing(false);
+            if (onOpenProModal) onOpenProModal('reverse-engineer');
+            setActiveMode('ingredients');
+            return;
+          }
           reverseEngineerImage(base64);
         } else {
           analyzeImage(base64);
@@ -642,8 +683,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (!isPro && onOpenProModal) {
-                onOpenProModal('reverse-engineer');
+              if (!isPro) {
+                if (onOpenProModal) onOpenProModal('reverse-engineer');
+                return;
               }
               setActiveMode('reverse-engineer');
               setPreviewImage(null);
