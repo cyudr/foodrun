@@ -14,6 +14,7 @@ import {
   Crown,
   Wand2,
   UtensilsCrossed,
+  Lock,
 } from 'lucide-react';
 import { SAMPLE_INGREDIENT_SCENARIOS, SampleItem } from '../utils/samples';
 import { processImageFile } from '../utils/imageProcessor';
@@ -73,12 +74,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Scanner Mode: 'ingredients' (Pantry) vs 'reverse-engineer' (Chef Pro)
   const [activeMode, setActiveMode] = useState<'ingredients' | 'reverse-engineer'>('ingredients');
 
-  // Enforce Pro gate: automatically revert to ingredients mode if user is not Pro
-  useEffect(() => {
-    if (!isPro && activeMode === 'reverse-engineer') {
-      setActiveMode('ingredients');
-    }
-  }, [isPro, activeMode]);
+  // When in Pro mode without a valid key, actions are locked and buttons are greyed out
+  const isProModeLocked = activeMode === 'reverse-engineer' && !isPro;
 
   // Prepared dish detection banner when a cooked meal is identified in ingredients mode
   const [detectedPreparedDish, setDetectedPreparedDish] = useState<{
@@ -683,10 +680,6 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (!isPro) {
-                if (onOpenProModal) onOpenProModal('reverse-engineer');
-                return;
-              }
               setActiveMode('reverse-engineer');
               setPreviewImage(null);
             }}
@@ -709,9 +702,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       <div className="px-4 pb-2 text-center">
         {activeMode === 'reverse-engineer' ? (
           <>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
-              <Crown className="w-3.5 h-3.5 text-amber-600" />
-              {t('chefPro', currentLanguage)}
+            <span
+              onClick={isProModeLocked ? () => onOpenProModal?.('reverse-engineer') : undefined}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shadow-xs ${
+                isProModeLocked
+                  ? 'bg-stone-200 text-stone-700 border-stone-300 cursor-pointer hover:bg-stone-300'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+            >
+              {isProModeLocked ? (
+                <Lock className="w-3.5 h-3.5 text-stone-600" />
+              ) : (
+                <Crown className="w-3.5 h-3.5 text-amber-600" />
+              )}
+              {isProModeLocked ? 'Chef Pro • Key Required' : t('chefPro', currentLanguage)}
             </span>
             <h1 className="text-2xl font-extrabold text-stone-900 mt-2 tracking-tight">
               {t('reverseTitle', currentLanguage)}
@@ -949,14 +953,30 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 <div className="flex flex-col items-center my-auto">
                   <button
                     type="button"
-                    onClick={() => startCamera('environment')}
-                    className="px-5 py-2.5 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-extrabold text-sm shadow-xl shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20 cursor-pointer"
+                    onClick={() => {
+                      if (isProModeLocked) {
+                        onOpenProModal?.('reverse-engineer');
+                        return;
+                      }
+                      startCamera('environment');
+                    }}
+                    className={`px-5 py-2.5 rounded-full font-extrabold text-sm transition-all flex items-center gap-2 border shadow-xl ${
+                      isProModeLocked
+                        ? 'bg-stone-800/90 text-stone-400 border-stone-700/80 opacity-60 cursor-not-allowed hover:scale-100'
+                        : 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-orange-500/30 hover:scale-105 active:scale-95 border-white/20 cursor-pointer'
+                    }`}
                   >
-                    <Camera className="w-4 h-4 stroke-[2.2]" />
+                    {isProModeLocked ? (
+                      <Lock className="w-4 h-4 text-stone-400" />
+                    ) : (
+                      <Camera className="w-4 h-4 stroke-[2.2]" />
+                    )}
                     <span>{t('initialiseCamera', currentLanguage)}</span>
                   </button>
                   <p className="text-stone-300 text-[11px] mt-1.5 font-medium drop-shadow-md">
-                    {activeMode === 'reverse-engineer'
+                    {isProModeLocked
+                      ? 'Enter invitation key to unlock Pro camera'
+                      : activeMode === 'reverse-engineer'
                       ? 'Tap to snap cooked meal & unlock recipe'
                       : 'Tap to start live scanner & zoom'}
                   </p>
@@ -1016,34 +1036,85 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => startCamera('environment')}
-              disabled={isAnalyzing}
-              type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-sm shadow-md shadow-amber-600/25 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Camera className="w-4 h-4" />
-              {t('initialiseCamera', currentLanguage)}
-            </button>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  if (isProModeLocked) {
+                    onOpenProModal?.('reverse-engineer');
+                    return;
+                  }
+                  startCamera('environment');
+                }}
+                disabled={isAnalyzing}
+                type="button"
+                className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-bold text-sm transition-all ${
+                  isProModeLocked
+                    ? 'bg-stone-200 text-stone-400 border border-stone-300 shadow-none cursor-not-allowed opacity-65 hover:bg-stone-200'
+                    : 'bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white shadow-md shadow-amber-600/25 cursor-pointer'
+                } disabled:opacity-50`}
+                title={isProModeLocked ? 'Chef Pro invitation code required' : undefined}
+              >
+                {isProModeLocked ? (
+                  <Lock className="w-4 h-4 text-stone-400 shrink-0" />
+                ) : (
+                  <Camera className="w-4 h-4 shrink-0" />
+                )}
+                <span>{t('initialiseCamera', currentLanguage)}</span>
+              </button>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isAnalyzing}
-              type="button"
-              className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <ImageIcon className="w-4 h-4 text-amber-400" />
-              {t('choosePhoto', currentLanguage)}
-            </button>
+              <button
+                onClick={() => {
+                  if (isProModeLocked) {
+                    onOpenProModal?.('reverse-engineer');
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
+                disabled={isAnalyzing}
+                type="button"
+                className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-semibold text-sm transition-all ${
+                  isProModeLocked
+                    ? 'bg-stone-200 text-stone-400 border border-stone-300 shadow-none cursor-not-allowed opacity-65 hover:bg-stone-200'
+                    : 'bg-stone-800 hover:bg-stone-700 active:scale-[0.98] text-white shadow-md cursor-pointer'
+                } disabled:opacity-50`}
+                title={isProModeLocked ? 'Chef Pro invitation code required' : undefined}
+              >
+                {isProModeLocked ? (
+                  <Lock className="w-4 h-4 text-stone-400 shrink-0" />
+                ) : (
+                  <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                )}
+                <span>{t('choosePhoto', currentLanguage)}</span>
+              </button>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+
+            {/* Pro Key Required Notice Banner */}
+            {isProModeLocked && (
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300/80 flex items-center justify-between gap-3 text-left animate-in fade-in">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-stone-700 text-xs font-medium leading-tight">
+                    Camera & dish recreation are locked. Valid invitation key required.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenProModal?.('reverse-engineer')}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black text-xs hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer shrink-0"
+                >
+                  Enter Key
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
