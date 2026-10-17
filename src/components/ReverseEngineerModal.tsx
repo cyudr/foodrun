@@ -194,27 +194,42 @@ export const ReverseEngineerModal: React.FC<ReverseEngineerModalProps> = ({
           {/* Flavor Profile Radar */}
           {recipe.flavorProfile && (
             <div className="p-4 rounded-2xl bg-stone-800/70 border border-stone-700">
-              <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-amber-400" />
-                <span>{t('flavorRadar', currentLanguage)}</span>
+              <h3 className="text-xs font-bold text-stone-300 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{t('flavorRadar', currentLanguage)}</span>
+                </span>
+                <span className="text-[10px] text-stone-400 font-semibold lowercase tracking-normal">
+                  (scale /10)
+                </span>
               </h3>
               <div className="grid grid-cols-5 gap-2 text-center">
-                {Object.entries(recipe.flavorProfile).map(([key, val]) => (
-                  <div key={key} className="flex flex-col items-center">
-                    <div className="w-full bg-stone-700 h-16 rounded-lg relative overflow-hidden flex items-end">
-                      <div
-                        className="w-full bg-gradient-to-t from-amber-600 to-orange-400 rounded-b-lg transition-all"
-                        style={{ height: `${Math.min(100, Math.max(15, (Number(val) || 5) * 10))}%` }}
-                      />
+                {Object.entries(recipe.flavorProfile).map(([key, rawVal]) => {
+                  const num = Number(rawVal);
+                  // Ensure scale is always strictly /10 (handles legacy /100 outputs smoothly)
+                  const val = isNaN(num)
+                    ? 5
+                    : num > 10
+                    ? Math.round((num / 10) * 10) / 10
+                    : Math.round(num * 10) / 10;
+                  const barPercent = Math.min(100, Math.max(8, Math.round((val / 10) * 100)));
+                  return (
+                    <div key={key} className="flex flex-col items-center">
+                      <div className="w-full bg-stone-700/80 h-16 rounded-lg relative overflow-hidden flex items-end p-0.5">
+                        <div
+                          className="w-full bg-gradient-to-t from-amber-600 via-amber-500 to-orange-400 rounded-md transition-all shadow-xs"
+                          style={{ height: `${barPercent}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-stone-400 capitalize mt-1.5 font-medium truncate max-w-full">
+                        {key}
+                      </span>
+                      <span className="text-[11px] font-bold text-amber-300">
+                        {val}/10
+                      </span>
                     </div>
-                    <span className="text-[10px] text-stone-400 capitalize mt-1.5 font-medium">
-                      {key}
-                    </span>
-                    <span className="text-[11px] font-bold text-amber-300">
-                      {val}/10
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

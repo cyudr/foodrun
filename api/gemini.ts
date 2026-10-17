@@ -1038,7 +1038,7 @@ Carefully examine this photograph of a finished food dish:
    - Visible base ingredients (proteins, carbs, produce, garnishes) in ${langConfig.name}.
    - Hidden culinary elements: sauces, emulsified dressings, marinades, aromatics, and secret spice blends that give this dish its signature taste in ${langConfig.name}.
    - Core culinary techniques used in ${langConfig.name} (e.g. pan-sear with crispy skin, deglaze reduction, sous-vide, charring, flash-fry).
-3. Evaluate the flavor balance on 0-100: savory, umami, acidity, sweetness, richness/fat.
+3. Evaluate the flavor balance on a scale of 0 to 10 (e.g. 8.5/10, where 10 is highest intensity): savory, umami, acidity, sweetness, richness/fat.
 4. Formulate the definitive, step-by-step master recipe in ${langConfig.name} so the user can recreate this restaurant-quality dish at home:
    - Clear title and enticing description in ${langConfig.name}.
    - Prep time, cook time, difficulty ('Easy', 'Medium', 'Hard'), and accurate integer servings (must be an integer, typically 2 or 4, matching the ingredient portions).
@@ -1093,12 +1093,13 @@ Return purely JSON adhering strictly to the schema.`;
             secretChefTip: { type: Type.STRING },
             flavorProfile: {
               type: Type.OBJECT,
+              description: 'Flavor balance scaled on 0 to 10 (e.g. savory: 8.5, umami: 8, acidity: 6.5, sweetness: 4, richness: 7.5)',
               properties: {
-                savory: { type: Type.NUMBER },
-                umami: { type: Type.NUMBER },
-                acidity: { type: Type.NUMBER },
-                sweetness: { type: Type.NUMBER },
-                richness: { type: Type.NUMBER },
+                savory: { type: Type.NUMBER, description: 'Score on 0 to 10' },
+                umami: { type: Type.NUMBER, description: 'Score on 0 to 10' },
+                acidity: { type: Type.NUMBER, description: 'Score on 0 to 10' },
+                sweetness: { type: Type.NUMBER, description: 'Score on 0 to 10' },
+                richness: { type: Type.NUMBER, description: 'Score on 0 to 10' },
               },
               required: ['savory', 'umami', 'acidity', 'sweetness', 'richness'],
             },
@@ -1196,7 +1197,22 @@ Return purely JSON adhering strictly to the schema.`;
       totalIngredients: totalIng,
       chefNotes: parsed.secretChefTip || 'Use fresh cold butter and high flame for authentic caramelization.',
       isReverseEngineered: true,
-      flavorProfile: parsed.flavorProfile || { savory: 85, umami: 80, acidity: 65, sweetness: 40, richness: 75 },
+      flavorProfile: (() => {
+        const raw = parsed.flavorProfile || { savory: 8.5, umami: 8, acidity: 6.5, sweetness: 4, richness: 7.5 };
+        const normalize = (v: any, fallback: number) => {
+          const num = Number(v);
+          if (isNaN(num)) return fallback;
+          const scaled = num > 10 ? num / 10 : num;
+          return Math.min(10, Math.max(0, Math.round(scaled * 10) / 10));
+        };
+        return {
+          savory: normalize(raw.savory, 8.5),
+          umami: normalize(raw.umami, 8.0),
+          acidity: normalize(raw.acidity, 6.5),
+          sweetness: normalize(raw.sweetness, 4.0),
+          richness: normalize(raw.richness, 7.5),
+        };
+      })(),
       detectedTechniques: parsed.detectedTechniques || ['Pan-searing', 'Emulsion sauce reduction'],
       deconstructedComponents: parsed.deconstructedComponents || [],
     };
@@ -1206,7 +1222,7 @@ Return purely JSON adhering strictly to the schema.`;
       recipe: masterRecipe,
       dishName: parsed.dishName,
       cuisine: parsed.cuisine,
-      flavorProfile: parsed.flavorProfile,
+      flavorProfile: masterRecipe.flavorProfile,
       detectedTechniques: parsed.detectedTechniques,
       secretChefTip: parsed.secretChefTip,
       deconstructedComponents: parsed.deconstructedComponents,
