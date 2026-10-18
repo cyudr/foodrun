@@ -56,13 +56,34 @@ app.all('/api*', (req, res) => geminiHandler(req, res));
 
 // Host Vite or Static Build
 const isProduction = process.env.NODE_ENV === 'production';
-const PORT = Number(process.env.PORT) || 3000;
+
+function getPort(): number {
+  const portIndex = process.argv.indexOf('--port');
+  if (portIndex !== -1 && process.argv[portIndex + 1]) {
+    return Number(process.argv[portIndex + 1]) || 3000;
+  }
+  return Number(process.env.PORT) || 3000;
+}
+
+function getHost(): string {
+  const hostIndex = process.argv.indexOf('--host');
+  if (hostIndex !== -1 && process.argv[hostIndex + 1]) {
+    return process.argv[hostIndex + 1];
+  }
+  return '0.0.0.0';
+}
 
 async function startServer() {
+  const port = getPort();
+  const host = getHost();
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR !== 'true',
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -73,9 +94,18 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SnapChef Server running on http://0.0.0.0:${PORT} (Gemini AI API)`);
+  const server = app.listen(port, host, () => {
+    console.log(`SnapChef Server running on http://${host}:${port} (Gemini AI API)`);
   });
+
+  const handleShutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', handleShutdown);
+  process.on('SIGTERM', handleShutdown);
 }
 
 startServer().catch((err) => {
